@@ -1,6 +1,8 @@
 // World Capitals (formerly Capital Atlas; the folder and saved-progress id stay capital-atlas): learn the capital of every country on a 3D globe or a flat map.
 // Built like Bone Atlas: Study, Practice and Test, by region, with two kinds of question
 // (click the country for a capital, or type the capital of a highlighted country).
+// The same page code runs World Countries (country-atlas/) and World Flags (flag-atlas/): each page
+// says which with <html data-subject="…">, and what differs between them is in subjects.js.
 // There's also a hidden Images mode (press I, or open the page with #images): Study with your own
 // pictures pasted onto countries as memory hooks. See "image mode" below.
 // The map is drawn on two canvases: `map` (land and sea, redrawn when the view moves) and
@@ -8,6 +10,8 @@
 import {
 	geoOrthographic, geoNaturalEarth1, geoPath, geoGraticule10, geoContains, geoBounds, geoCentroid, geoDistance, geoArea, feature,
 } from './geo.js';
+import { norm, subjectFor, makeChecker, flagUrl } from './subjects.js';
+import { EN, t, useLanguage, lang, locale, nameOf, capitalOf, placeName, waterName } from './text.js';
 
 const $ = (id) => document.getElementById(id);
 const TAU = Math.PI * 2;
@@ -15,8 +19,13 @@ const DEG = Math.PI / 180;
 const SPHERE = { type: 'Sphere' };
 const GRAT = geoGraticule10();
 
+/* ---------------- what this page teaches ---------------- */
+const S = subjectFor(document.documentElement.dataset.subject);
+// the map files are World Capitals' own, wherever the page is
+const DATA = new URL('data/', import.meta.url).href;
+
 /* ---------------- storage (per-browser, optional) ---------------- */
-const store = window.SiteProgress ? window.SiteProgress.tool('capital-atlas') : { get: (k, d) => d, set() {} };
+const store = window.SiteProgress ? window.SiteProgress.tool(S.tool) : { get: (k, d) => d, set() {} };
 
 /* ---------------- regions and places to zoom to ---------------- */
 const REGIONS = [
@@ -98,6 +107,8 @@ const AREAS = {
 	melanesia: { label: 'Melanesia', box: [140, -23, 180, 0] },
 	'micronesia-region': { label: 'Micronesia (region)', box: [130, -2, 175, 15] },
 };
+// the ones the page shows (rail and zoom buttons) are translated; the rest are only for voice, which is English
+const EN_REGION = new Set([...REGIONS, ...SUBREGIONS].map((r) => r.key).concat('pacific'));
 // every subregion is also a place to zoom to (this replaces the older boxes of the same name)
 for (const s of SUBREGIONS) AREAS[s.key] = { label: s.label, box: s.box };
 const ZOOM_KEYS = ['world', 'europe', 'asia', 'north-america', 'south-america', 'africa', 'oceania', 'caribbean', 'middle-east', 'pacific'];
@@ -111,7 +122,7 @@ const state = {
 	view: oneOf(store.get('view', 'globe'), ['globe', 'map'], 'globe'),
 	level: oneOf(store.get('level', 'easy'), ['easy', 'hard'], 'easy'),
 	clean: false,
-	names: store.get('waterNames', true) !== false, // names of oceans, seas, lakes and rivers
+	names: store.get('waterNames', S.waterNames) !== false, // names of oceans, seas, lakes and rivers (on or off at first: subjects.js)
 	zoomArea: null, // the zoom chip the view was last set to (cleared by moving the map by hand)
 	pins: false, // the hidden Images mode: Study, plus your own pictures pinned to countries
 	pinSize: 2, // which of PIN_SIZES the pictures are drawn at
@@ -130,51 +141,19 @@ if (location.hash === '#images') {
 
 let COUNTRIES = [];
 const BY_ID = new Map();
-const CAPITAL_INDEX = new Map(); // normalised capital -> country
 const LOD = { xlow: null, low: null, mid: null, high: null }; // GeoJSON features at four levels of detail (same order)
 let META = []; // per feature: { i, id, country, name, of, c, r, area, box }
 
 const inRegion = (c, key) => key === 'world' || c.region === key || (SUB_IDS.has(key) && SUB_IDS.get(key).has(c.id));
 const inScope = (c) => inRegion(c, state.region);
 const scopeCountries = () => COUNTRIES.filter(inScope);
-const regionLabel = (k = state.region) => REGION[k].label;
+// a region's or zoom area's name, in the language in use (the English label where it has no translation)
+const regionName = (k) => (EN_REGION.has(k) ? t('region.' + k) : (AREAS[k] || REGION[k]).label);
+const regionLabel = (k = state.region) => regionName(k);
 
 /* ---------------- typed answers ---------------- */
-const norm = (s) =>
-	String(s)
-		.normalize('NFD')
-		.replace(/[̀-ͯ]/g, '')
-		.toLowerCase()
-		.replace(/\bst\b\.?/g, 'saint')
-		.replace(/[^a-z]/g, '');
-function editDistance(a, b) {
-	const m = a.length, n = b.length;
-	const d = Array.from({ length: m + 1 }, (_, i) => [i, ...new Array(n).fill(0)]);
-	for (let j = 1; j <= n; j++) d[0][j] = j;
-	for (let i = 1; i <= m; i++)
-		for (let j = 1; j <= n; j++) {
-			d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-			if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
-		}
-	return d[m][n];
-}
-// -> { ok, note } or { ok: false, msg }; a near miss in Easy is { ok: true, close: true, note } (half a point).
-// strict: spelling must be exact (accents, capitals and punctuation still don't matter).
-// keepSecret: a wrong answer's message doesn't give the answer away.
-function checkAnswer(c, typed, { strict = false, keepSecret = false } = {}) {
-	const t = norm(typed);
-	const forms = [c.capital, ...(c.alts || [])].map(norm);
-	if (forms.includes(t)) return { ok: true };
-	const tell = keepSecret ? ' Try again.' : ` ${c.name}’s capital is ${c.capital}.`;
-	if ((c.formerly || []).map(norm).includes(t)) return { ok: false, msg: `${typed.trim()} used to be the capital.${tell}` };
-	const other = CAPITAL_INDEX.get(t);
-	if (other && other !== c) return { ok: false, msg: `${other.capital} is the capital of ${other.name}.${tell}` };
-	const slack = strict ? 0 : t.length >= 8 ? 2 : t.length >= 5 ? 1 : 0;
-	if (slack && forms.some((f) => editDistance(t, f) <= slack)) return { ok: true, close: true, note: `Close: it’s spelled ${c.capital}. Half a point.` };
-	if (keepSecret) return { ok: false, msg: 'Not quite. Try again, skip it, or give up.' };
-	const near = strict && forms.some((f) => editDistance(t, f) <= (t.length >= 8 ? 2 : 1));
-	return { ok: false, msg: near ? `So close, but Hard needs the exact spelling: ${c.capital}.` : `${c.name}: ${c.capital}.` };
-}
+// checkAnswer(c, typed, { strict, keepSecret }), made when the countries have loaded (subjects.js)
+let checkAnswer = () => ({ ok: false, msg: '' });
 
 /* ---------------- layout: the area the panels leave free ---------------- */
 const layout = { w: 1, h: 1, left: 0, right: 0, top: 0, bottom: 0 };
@@ -204,10 +183,11 @@ function free() {
 /* ---------------- camera and projections ---------------- */
 // One camera for both views: the point in the middle of the free area, and a zoom (1 = whole world).
 const cam = { lon: 10, lat: 15, zoom: 1 };
-// The hidden spinning globe (see "spinning globe" below). level 1-3; speed eases toward SPIN_SPEEDS[level];
-// labels: capital id -> { a: how visible its name is, left: drawn left of the dot }
+// The hidden spinning globe (see "spinning globe" below). level 1-3; speed eases toward SPIN_SPEEDS[level],
+// or toward 0 while paused; labels: capital id -> { a: how visible its name is, left: drawn left of the dot }
 const SPIN_SPEEDS = [0, 6, 15, 36]; // degrees a second: a turn a minute, every 24 s, every 10 s
-const spin = { on: false, level: 0, speed: 0, last: 0, fxLast: 0, back: null, labels: new Map() };
+const spin = { on: false, level: 0, speed: 0, paused: false, last: 0, fxLast: 0, back: null, labels: new Map() };
+const spinStill = () => spin.on && spin.paused && !spin.speed; // paused and come to a stop: nothing to redraw
 let mapBase = 100;
 const baseScale = (view = state.view) => (view === 'globe' ? Math.min(free().fw, free().fh) * 0.46 : mapBase);
 function computeMapBase() {
@@ -272,12 +252,13 @@ function camForBox(box, view = state.view, pad = 18) {
 	const ll = p.invert([f.cx, f.cy]);
 	return constrain({ lon: ll[0], lat: ll[1], zoom: p.scale() / mapBase }, 'map');
 }
-// Frame a country with some of its surroundings (tiny countries get at least ~14° of context)
+// Frame a country with some of its surroundings (tiny countries get at least ~14° of context; on World
+// Countries and World Flags more, since the neighbours are how you tell a country from its shape)
 function camForCountry(c, view = state.view) {
 	const [[w, s], [e, n]] = META[c.fi].box;
 	const E = e < w ? e + 360 : e;
 	const cx = (w + E) / 2, cy = (s + n) / 2;
-	const hw = Math.max((E - w) / 2, 7), hh = Math.max((n - s) / 2, 4.5);
+	const hw = Math.max((E - w) / 2, S.around[0]), hh = Math.max((n - s) / 2, S.around[1]);
 	return camForBox([cx - hw, cy - hh, cx + hw, cy + hh], view, 48);
 }
 
@@ -386,7 +367,7 @@ let highRequested = false;
 function requestHigh() {
 	if (highRequested) return;
 	highRequested = true;
-	fetch('data/map-high.json')
+	fetch(DATA + 'map-high.json')
 		.then((r) => r.json())
 		.then((t) => {
 			LOD.high = useTopology(t);
@@ -423,6 +404,10 @@ const mapCv = $('map'), fxCv = $('fx'), lblCv = $('labels');
 const bctx = mapCv.getContext('2d'), fctx = fxCv.getContext('2d'), lctx = lblCv.getContext('2d');
 // slowDevice: drawing the map while it moves took too long, so moving frames use less detail
 let dpr = 1, baseDirty = true, raf = 0, drawnFeats = null, slowDevice = false;
+// laggy: frames came slowly while the map moved, for a while: the pixels, not the code, are what's slow
+// (the code's own time is what sets slowDevice). Once seen it stays, as it's the device, not the moment.
+// States & Provinces does the same (state-atlas/js/map.js).
+let laggy = false, lagFrames = 0, lastFrame = 0;
 const COL = {
 	inScope: '#c6bba2',
 	outScope: '#4b585f',
@@ -462,6 +447,11 @@ function invalidate(base = true) {
 }
 function frame(now) {
 	raf = 0;
+	const gap = now - lastFrame;
+	lastFrame = now;
+	if (moving && gap > 34 && gap < 250) {
+		if (++lagFrames >= 6) laggy = true;
+	} else lagFrames = 0;
 	stepFly(now);
 	stepSpin(now);
 	if (baseDirty && proj) {
@@ -469,7 +459,7 @@ function frame(now) {
 		drawBase();
 	}
 	const busy = proj ? drawFx(now) : false;
-	if (fly || busy || spin.on) raf = requestAnimationFrame(frame);
+	if (fly || busy || (spin.on && !spinStill())) raf = requestAnimationFrame(frame);
 }
 function viewCap(p) {
 	const f = free();
@@ -560,7 +550,7 @@ function drawBase() {
 	}
 	if (moving) {
 		const ms = performance.now() - t0;
-		if (ms > 24) slowDevice = true;
+		if (ms > 24 || laggy) slowDevice = true;
 		else if (ms < 8) slowDevice = false;
 	}
 	drawWaterLabels(p);
@@ -631,7 +621,7 @@ function useWater(t) {
 // seas and oceans: just names and places to put them (data/seas.json), biggest first
 let SEAS = null;
 function loadSeas() {
-	return fetch('data/seas.json')
+	return fetch(DATA + 'seas.json')
 		.then((r) => r.json())
 		.then((list) => {
 			SEAS = list.sort((a, b) => a.r - b.r);
@@ -639,7 +629,7 @@ function loadSeas() {
 		});
 }
 function loadWater(name) {
-	return fetch(`data/water-${name}.json`)
+	return fetch(`${DATA}water-${name}.json`)
 		.then((r) => r.json())
 		.then((t) => {
 			WATER[name] = useWater(t);
@@ -714,7 +704,7 @@ function drawWaterLabels(p) {
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 	ctx.clearRect(0, 0, layout.w, layout.h);
 	const w = waterSet(p), z = webZoom(p);
-	if (!w || moving || !state.names) return;
+	if (!w || moving || spin.on || !state.names) return; // none on the spinning globe, turning or paused
 	if (!labelFont) labelFont = getComputedStyle(document.body).fontFamily;
 	const f = free();
 	const taken = [];
@@ -760,7 +750,8 @@ function drawWaterLabels(p) {
 			const ocean = s.k === 'ocean';
 			if (ocean ? z < 1 : z < s.ml - 0.2) continue;
 			const pts = s.lp.slice().sort((a, b) => geoDistance(a, ctr) - geoDistance(b, ctr));
-			if (n < 80 && place(ocean ? s.n.toUpperCase() : s.n, pts, ocean ? 13 : s.r <= 1 ? 12 : 11, ocean)) n++;
+			const name = waterName(s.n);
+			if (n < 80 && place(ocean ? name.toLocaleUpperCase(locale()) : name, pts, ocean ? 13 : s.r <= 1 ? 12 : 11, ocean)) n++;
 		}
 		if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
 	}
@@ -768,7 +759,7 @@ function drawWaterLabels(p) {
 	const lakes = visibleWater(w.lakes, p, z, LAKE_LEAD)
 		.filter((l) => l.properties.n && l.properties.ml <= z + RIVER_LEAD)
 		.sort((a, b) => a.properties.r - b.properties.r || b.area - a.area);
-	for (const l of lakes) if (n < 40 && place(l.properties.n, [l.properties.lp], l.properties.r <= 1 ? 12 : 11)) n++;
+	for (const l of lakes) if (n < 40 && place(waterName(l.properties.n), [l.properties.lp], l.properties.r <= 1 ? 12 : 11)) n++;
 	// a river is several pieces: one label per name, on the first of its points that fits
 	const byName = new Map();
 	for (const r of visibleWater(w.rivers, p, z, RIVER_LEAD)) {
@@ -779,7 +770,7 @@ function drawWaterLabels(p) {
 		g.points.push(...q.lp);
 		byName.set(q.n, g);
 	}
-	for (const [name, g] of [...byName].sort((a, b) => a[1].r - b[1].r)) if (n < 70 && place(name, g.points, 11)) n++;
+	for (const [name, g] of [...byName].sort((a, b) => a[1].r - b[1].r)) if (n < 70 && place(waterName(name), g.points, 11)) n++;
 }
 // The lake under the pointer, if one is on screen: { text } for the message. Lakes can be clicked
 // and don't count as the country around them; rivers are too thin for that, so a click or hover
@@ -793,7 +784,7 @@ function waterAt(x, y) {
 	const z = webZoom(p);
 	for (const f of w.lakes) {
 		const q = f.properties;
-		if (q.mz <= z + LAKE_LEAD && geoDistance(f.c, ll) < f.r && geoContains(f, ll)) return { text: q.n ? `That’s ${q.n}.` : 'That’s a lake.' };
+		if (q.mz <= z + LAKE_LEAD && geoDistance(f.c, ll) < f.r && geoContains(f, ll)) return { text: q.n ? t('lake_is', { name: waterName(q.n) }) : t('a_lake') };
 	}
 	return null;
 }
@@ -814,7 +805,7 @@ const isTiny = (m, p) => m.small && m.area * p.scale() * p.scale() < 250;
 function targetId() {
 	if (state.mode === 'study') return studySelected() ? study.items[study.index].id : null;
 	if (!session || !session.current || review) return null;
-	if (session.phase === 'reveal' || state.format === 'type') return session.current.id;
+	if (session.phase === 'reveal' || (state.format === 'type' && S.lightTyped)) return session.current.id;
 	return null;
 }
 function fillCountry(ctx, path, id, fill, alpha, stroke) {
@@ -847,8 +838,7 @@ function drawFx(now) {
 	screen.clear();
 	if (spin.on) {
 		pinRects = [];
-		drawSpinFx(ctx, p, now);
-		return true;
+		return drawSpinFx(ctx, p, now);
 	}
 	for (const c of COUNTRIES) {
 		if (!inScope(c) || c.fi == null) continue;
@@ -876,7 +866,7 @@ function drawFx(now) {
 	// the country being studied or asked about
 	const tid = targetId();
 	if (tid) {
-		const pulse = session && (session.phase === 'reveal' || state.format === 'type') && state.mode !== 'study';
+		const pulse = session && (session.phase === 'reveal' || (state.format === 'type' && S.lightTyped)) && state.mode !== 'study';
 		const a = pulse ? 0.55 + 0.3 * Math.sin(now / 260) : 0.78;
 		if (pulse) busy = true;
 		ctx.shadowColor = 'rgba(111, 208, 232, 0.8)';
@@ -894,7 +884,7 @@ function drawFx(now) {
 	for (const fl of flashes) light(fl.id);
 	light(tid);
 	if (lit.length) drawWater(ctx, path, p, (f) => lit.some((m) => geoDistance(m.c, f.c) < m.r + f.r));
-	// rings around countries too small to see, then every capital
+	// rings around countries too small to see, then every capital (World Capitals only)
 	for (const [id, s] of screen) {
 		if (!s.tiny) continue;
 		ctx.beginPath();
@@ -906,7 +896,7 @@ function drawFx(now) {
 		ctx.stroke();
 	}
 	const r = Math.min(3.6, 2.2 + p.scale() * DEG * 0.004);
-	for (const [, s] of screen) {
+	for (const [, s] of S.dots ? screen : []) {
 		ctx.beginPath();
 		ctx.arc(s.x, s.y, r, 0, TAU);
 		ctx.fillStyle = COL.dot;
@@ -933,7 +923,20 @@ function flash(id, kind) {
 }
 
 /* ---------- name callout pinned to a capital ---------- */
-function setCallout(id, title, sub) {
+// World Flags: a country's flag, as a picture
+function flagImg(id) {
+	const img = document.createElement('img');
+	img.className = 'flag';
+	img.src = flagUrl(id);
+	img.alt = '';
+	img.decoding = 'async';
+	return img;
+}
+const calloutFor = (c) => {
+	const k = S.callout(c);
+	setCallout(c.id, k.title, k.sub, k.flag);
+};
+function setCallout(id, title, sub, flag) {
 	callout = id ? { id, title, sub } : null;
 	const el = $('callout');
 	if (!callout) {
@@ -942,6 +945,7 @@ function setCallout(id, title, sub) {
 		return;
 	}
 	el.replaceChildren(document.createTextNode(title));
+	if (flag) el.prepend(flagImg(flag));
 	if (sub) {
 		const s = document.createElement('small');
 		s.textContent = sub;
@@ -1137,7 +1141,7 @@ function setHover(hit) {
 /* ---------------- study mode ---------------- */
 let study = null;
 function startStudy(selectId) {
-	const items = scopeCountries().sort((a, b) => a.name.localeCompare(b.name));
+	const items = scopeCountries().sort((a, b) => nameOf(a).localeCompare(nameOf(b), locale())); // A to Z in the language in use
 	const at = items.findIndex((c) => c.id === selectId);
 	study = { items, index: Math.max(0, at), cleared: false };
 	showStudyItem(false);
@@ -1150,7 +1154,7 @@ function showStudyItem(move) {
 	}
 	study.cleared = false;
 	const c = study.items[study.index];
-	setCallout(c.id, c.capital, c.name);
+	calloutFor(c);
 	if (move) showCountry(c, false);
 	renderPrompt();
 	invalidate(false);
@@ -1177,7 +1181,7 @@ function studyPick(hit) {
 	const c = BY_ID.get(hit.id);
 	const at = study ? study.items.findIndex((x) => x.id === c.id) : -1;
 	if (at < 0) {
-		toast(`${c.name}: ${c.capital}. It’s outside ${regionLabel()}.`);
+		toast(S.outside(c, regionLabel()));
 		return;
 	}
 	study.index = at;
@@ -1185,7 +1189,8 @@ function studyPick(hit) {
 }
 function toastPlace(i) {
 	const m = META[i];
-	toast(`${m.name}${m.of && m.of !== m.name ? ` (${m.of})` : ''} isn’t a country in this quiz.`);
+	const name = placeName(m.name), of = m.of && m.of !== m.name ? placeName(m.of) : null;
+	toast(t('not_country', { name: of ? t('place_of', { name, of }) : name }));
 }
 // Bring a country into view if it isn't comfortably visible (always, for typed questions)
 function showCountry(c, forTyping) {
@@ -1217,7 +1222,7 @@ const pinDb = (() => {
 		opening ||
 		(opening = new Promise((resolve, reject) => {
 			if (!window.indexedDB) return reject(new Error('no IndexedDB'));
-			const rq = indexedDB.open('ss1.capital-atlas', 1);
+			const rq = indexedDB.open('ss1.' + S.tool, 1);
 			rq.onupgradeneeded = () => rq.result.createObjectStore('images');
 			rq.onsuccess = () => resolve(rq.result);
 			rq.onerror = () => reject(rq.error);
@@ -1363,7 +1368,7 @@ async function pinPicture(source, id = selectedPinId()) {
 	}
 	const replaced = PINS.has(c.id);
 	PINS.set(c.id, { img, tile: null });
-	toast(replaced ? `New image for ${c.name}.` : `Image pinned to ${c.name}.`, 'ok');
+	toast(replaced ? `New image for ${nameOf(c)}.` : `Image pinned to ${nameOf(c)}.`, 'ok');
 	pinDb.put(c.id, blob).catch(() => toast('This browser won’t save images (a private window?), so it’ll be gone after a reload.', 'bad'));
 	renderPrompt();
 	invalidate();
@@ -1372,7 +1377,7 @@ function removePin(id = selectedPinId()) {
 	if (!id || !PINS.has(id)) return;
 	PINS.delete(id);
 	pinDb.del(id).catch(() => {});
-	toast(`Image removed from ${BY_ID.get(id).name}.`);
+	toast(`Image removed from ${nameOf(BY_ID.get(id))}.`);
 	renderPrompt();
 	invalidate();
 }
@@ -1464,7 +1469,7 @@ window.addEventListener('drop', (e) => {
 	let id = selectedPinId();
 	if (hit && hit.id && study) {
 		const at = study.items.findIndex((c) => c.id === hit.id);
-		if (at < 0) return toast(`${BY_ID.get(hit.id).name} is outside ${regionLabel()}.`, 'bad');
+		if (at < 0) return toast(`${nameOf(BY_ID.get(hit.id))} is outside ${regionLabel()}.`, 'bad');
 		study.index = at;
 		showStudyItem(false);
 		id = hit.id;
@@ -1714,7 +1719,7 @@ function nextItem() {
 function moveQuestion(dir) {
 	if (!session || !session.current || session.busy || review || session.phase === 'reveal') return;
 	if (!session.queue.length) {
-		toast('This is the last one left.');
+		toast(t('last_one'));
 		return;
 	}
 	if (dir > 0) {
@@ -1730,7 +1735,7 @@ function moveQuestion(dir) {
 function showQuestion() {
 	session.phase = 'ask';
 	if (state.format === 'type') {
-		showCountry(session.current, true);
+		if (S.lightTyped) showCountry(session.current, true);
 		openInput();
 	} else closeInput();
 	renderPrompt();
@@ -1757,7 +1762,7 @@ function onMapClick(hit) {
 	if (!hit.id) return toastPlace(hit.i);
 	const c = BY_ID.get(hit.id);
 	if (!inScope(c)) {
-		toast(`That’s ${c.name}, outside ${regionLabel()}.`, 'bad');
+		toast(t('outside', { name: nameOf(c), region: regionLabel() }), 'bad');
 		return;
 	}
 	// Easy: a country already coloured green or red has been answered, so a click on it doesn't count
@@ -1770,7 +1775,7 @@ function onMapClick(hit) {
 			later(350);
 		} else {
 			flash(c.id, 'bad');
-			toast(quiet() ? 'Not that one. Click the glowing country.' : `That’s ${c.name}. Click the glowing country.`, 'bad');
+			toast(quiet() ? t('not_that_glow') : t('that_glow', { name: nameOf(c) }), 'bad');
 		}
 		return;
 	}
@@ -1778,8 +1783,8 @@ function onMapClick(hit) {
 	if (right) gotIt(cur);
 	else {
 		flash(c.id, 'bad');
-		// say only what the answer was, never the capital of the country you clicked
-		toast(quiet() ? 'Not that one.' : `It was ${cur.name}.`, 'bad');
+		// World Capitals says only what the answer was, never the capital of the country you clicked
+		toast(quiet() ? t('not_that') : S.missClick(cur, c), 'bad');
 		missed(cur, true);
 	}
 	renderStats();
@@ -1803,7 +1808,7 @@ function submitAnswer(text) {
 			later(350);
 		} else {
 			badInput();
-			toast(`Type “${cur.capital}” to carry on.`, 'bad');
+			toast(t('type_to_go_on', { answer: S.answer(cur) }), 'bad');
 		}
 		return;
 	}
@@ -1838,7 +1843,7 @@ function gotIt(cur, note, close = false) {
 	pulsePrompt(close ? 'close' : 'ok');
 	if (note) toast(note, close ? 'close' : 'ok');
 	else if (quiet()) toast('Correct.', 'ok');
-	else if (state.format === 'click') toast(`Correct, that’s ${cur.name}.`, 'ok');
+	else if (state.format === 'click') toast(t('correct_that', { name: nameOf(cur) }), 'ok');
 	session.busy = true;
 	renderPrompt();
 	invalidate();
@@ -1862,7 +1867,7 @@ function missed(cur, answered) {
 	// practice: show it, make you answer it, and bring it back a few questions later
 	session.queue.splice(Math.min(3, session.queue.length), 0, cur);
 	session.phase = 'reveal';
-	if (state.format === 'click') setCallout(cur.id, cur.capital, cur.name);
+	if (state.format === 'click') calloutFor(cur);
 	showCountry(cur, state.format === 'type');
 	renderPrompt();
 	invalidate();
@@ -1875,8 +1880,8 @@ function skip() {
 		return;
 	}
 	session.attempts++;
-	if (state.format === 'type') toast(`${session.current.name}: ${session.current.capital}.`);
-	else if (state.mode === 'test' && !quiet()) toast(`It was ${session.current.name}.`);
+	if (state.format === 'type') toast(S.fact(session.current));
+	else if (state.mode === 'test' && !quiet()) toast(t('it_was', { name: nameOf(session.current) }));
 	missed(session.current, false);
 	renderStats();
 }
@@ -1908,8 +1913,8 @@ function finishSession() {
 	$('rClose').textContent = review.close;
 	$('rCloseKey').hidden = !review.close;
 	$('rBad').textContent = review.bad;
-	$('rOkLabel').textContent = state.mode === 'test' || typeEasy() ? 'correct' : 'first try';
-	$('rBadLabel').textContent = typeEasy() ? 'gave up' : state.mode === 'test' ? 'missed' : 'needed help';
+	$('rOkLabel').textContent = state.mode === 'test' || typeEasy() ? t('r_correct') : t('r_first');
+	$('rBadLabel').textContent = typeEasy() ? t('r_gave_up') : state.mode === 'test' ? t('r_missed') : t('r_needed_help');
 	$('rPractice').hidden = !missedIds.length;
 	renderAll();
 	$('sTime').textContent = fmtTime(ms);
@@ -1928,9 +1933,9 @@ function reviewPick(hit) {
 	if (!hit) return;
 	if (!hit.id) return toastPlace(hit.i);
 	const c = BY_ID.get(hit.id);
-	if (!review.status.get(c.id)) return toast(`${c.name}: ${c.capital}.`);
+	if (!review.status.get(c.id)) return toast(S.fact(c));
 	// the map's green / red already says how it went
-	setCallout(c.id, c.capital, c.name);
+	calloutFor(c);
 }
 $('rAgain').addEventListener('click', () => startSession());
 $('rPractice').addEventListener('click', () => {
@@ -1943,7 +1948,7 @@ $('rPractice').addEventListener('click', () => {
 function openInput() {
 	$('answerForm').hidden = false;
 	$('answer').classList.remove('is-bad');
-	$('answer').placeholder = session && session.phase === 'reveal' ? `Type ${session.current.capital}` : 'Type the capital';
+	$('answer').placeholder = session && session.phase === 'reveal' ? t('type_x', { answer: S.answer(session.current) }) : S.placeholder();
 	syncMore();
 	if (!narrow() || document.activeElement === $('answer')) $('answer').focus({ preventScroll: true });
 }
@@ -1958,12 +1963,19 @@ function badInput() {
 	const el = $('answer');
 	el.classList.add('is-bad');
 	setTimeout(() => el.classList.remove('is-bad'), 700);
-	if (session && session.phase === 'reveal') el.placeholder = `Type ${session.current.capital}`;
+	if (session && session.phase === 'reveal') el.placeholder = t('type_x', { answer: S.answer(session.current) });
 }
+// Enter that finishes a word in a Chinese, Japanese or Korean input method isn't an answer yet (Safari sends it
+// just after compositionend, so a few milliseconds after one count too)
+let composedAt = -1e9;
+$('answer').addEventListener('compositionend', () => (composedAt = performance.now()));
+$('answer').addEventListener('keydown', (e) => {
+	if (e.key === 'Enter' && (e.isComposing || e.keyCode === 229 || performance.now() - composedAt < 80)) e.preventDefault();
+});
 $('answerForm').addEventListener('submit', (e) => {
 	e.preventDefault();
 	submitAnswer($('answer').value);
-	if (session && session.phase === 'reveal' && state.format === 'type') $('answer').placeholder = `Type ${session.current.capital}`;
+	if (session && session.phase === 'reveal' && state.format === 'type') $('answer').placeholder = t('type_x', { answer: S.answer(session.current) });
 });
 
 /* ---------------- prompt, stats and panels ---------------- */
@@ -1985,6 +1997,21 @@ function fitName() {
 		el.style.fontSize = size.toFixed(1) + 'px';
 	}
 	if (el.scrollWidth > avail + 1) el.style.whiteSpace = 'normal';
+}
+// The big line of the prompt. On World Flags a flag goes before the name, or stands alone when it's the question.
+let nameFlag = null; // the flag picture, kept so it doesn't reload on every redraw
+function setName(text, flag) {
+	const el = $('pName');
+	el.classList.toggle('flag-only', !!flag && !text);
+	if (!flag) {
+		el.textContent = text;
+		return;
+	}
+	if (!nameFlag) nameFlag = flagImg(flag);
+	else if (nameFlag.dataset.id !== flag) nameFlag.src = flagUrl(flag);
+	nameFlag.dataset.id = flag;
+	nameFlag.alt = text ? '' : t('flag_to_find');
+	el.replaceChildren(nameFlag, ...(text ? [document.createTextNode(text)] : []));
 }
 function setTip(text) {
 	const t = $('pTip');
@@ -2012,66 +2039,55 @@ function renderPromptText() {
 	renderPinBar();
 	if (state.mode === 'study') {
 		if (!study || !study.items.length) {
-			$('pEyebrow').textContent = state.pins ? 'Images' : 'Study';
-			$('pName').textContent = 'Nothing to study here';
+			$('pEyebrow').textContent = state.pins ? 'Images' : t('mode_study');
+			setName(t('nothing_to_study'));
 			$('pMeta').textContent = reg;
 			setTip('');
 			return;
 		}
-		$('pEyebrow').textContent = `${state.pins ? 'Images' : 'Study'} · ${reg}`;
+		$('pEyebrow').textContent = `${state.pins ? 'Images' : t('mode_study')} · ${reg}`;
 		if (study.cleared) {
-			$('pName').textContent = 'Pick a country';
-			$('pMeta').textContent = `${study.items.length} countries · click one, or ← → to carry on`;
+			setName(t('pick_country'));
+			$('pMeta').textContent = t('study_meta_all', { n: study.items.length });
 			setTip('');
 			return;
 		}
-		const c = study.items[study.index];
-		$('pName').textContent = `${c.name}: ${c.capital}`;
+		const c = study.items[study.index], st = S.study(c);
+		setName(st.name, st.flag);
 		if (state.pins) {
 			const have = study.items.filter((x) => PINS.has(x.id)).length;
 			$('pMeta').textContent = `${study.index + 1} of ${study.items.length} · ${have} with images${narrow() ? '' : ` · ${PASTE_KEY} pastes onto this one`}`;
-		} else $('pMeta').textContent = `${study.index + 1} of ${study.items.length} · ← → to move, or click any country`;
-		setTip(c.note || '');
+		} else $('pMeta').textContent = t('study_meta', { i: study.index + 1, n: study.items.length });
+		setTip(st.tip);
 		$('pBar').style.width = ((100 * (study.index + 1)) / study.items.length).toFixed(1) + '%';
 		return;
 	}
 	setTip('');
 	if (!session) return;
 	if (!session.total) {
-		$('pEyebrow').textContent = state.mode === 'test' ? 'Test' : 'Practice';
-		$('pName').textContent = 'No countries in this selection';
+		$('pEyebrow').textContent = state.mode === 'test' ? t('mode_test') : t('mode_practice');
+		setName(t('no_countries'));
 		$('pMeta').textContent = reg;
 		return;
 	}
 	if (review) {
-		$('pEyebrow').textContent = `${state.mode === 'test' ? 'Test complete' : 'Set learned'} · ${reg}`;
-		$('pName').textContent = `${review.score} / ${session.total}`;
-		$('pMeta').textContent = `${review.acc}% accuracy · ${fmtTime(review.ms)} · best ${review.best.score}/${review.best.total}`;
+		$('pEyebrow').textContent = `${state.mode === 'test' ? t('test_complete') : t('set_learned')} · ${reg}`;
+		setName(`${review.score} / ${session.total}`);
+		$('pMeta').textContent = t('review_meta', { acc: review.acc, time: fmtTime(review.ms), best: review.best.score, total: review.best.total });
 		return;
 	}
 	const cur = session.current;
 	if (!cur) {
-		$('pEyebrow').textContent = state.mode === 'test' ? 'Test finished' : 'Set learned';
-		$('pName').textContent = `${session.total - session.everMissed.size} of ${session.total}`;
-	} else if (state.format === 'click') {
-		if (session.phase === 'reveal') {
-			$('pEyebrow').textContent = 'Here it is. Click the glowing country';
-			$('pName').textContent = cur.capital;
-			setTip(`${cur.capital} is the capital of ${cur.name}.${cur.note ? ' ' + cur.note : ''}`);
-		} else {
-			$('pEyebrow').textContent = 'Click the country whose capital is';
-			$('pName').textContent = cur.capital;
-		}
-	} else if (session.phase === 'reveal') {
-		$('pEyebrow').textContent = `The capital of ${cur.name} is`;
-		$('pName').textContent = cur.capital;
-		setTip(`Type it to carry on.${cur.note ? ' ' + cur.note : ''}`);
+		$('pEyebrow').textContent = state.mode === 'test' ? t('test_finished') : t('set_learned');
+		setName(t('n_of_n', { a: session.total - session.everMissed.size, n: session.total }));
 	} else {
-		$('pEyebrow').textContent = 'What’s the capital of';
-		$('pName').textContent = cur.name;
+		const q = (state.format === 'click' ? (session.phase === 'reveal' ? S.clickReveal : S.clickAsk) : session.phase === 'reveal' ? S.typeReveal : S.typeAsk)(cur);
+		$('pEyebrow').textContent = q.eyebrow;
+		setName(q.name, q.flag);
+		if (q.tip) setTip(q.tip);
 	}
 	const answered = session.total - session.queue.length - (cur ? 1 : 0);
-	$('pMeta').textContent = `${reg} · ${state.mode === 'test' ? `${answered}/${session.total} answered` : `${session.done}/${session.total} learned`}`;
+	$('pMeta').textContent = state.mode === 'test' ? t('meta_answered', { region: reg, a: answered, n: session.total }) : t('meta_learned', { region: reg, a: session.done, n: session.total });
 	const frac = state.mode === 'test' ? answered / session.total : session.done / session.total;
 	$('pBar').style.width = (100 * frac).toFixed(1) + '%';
 }
@@ -2095,7 +2111,7 @@ setInterval(() => {
 function renderRail() {
 	const title = document.createElement('div');
 	title.className = 'rail-title';
-	title.textContent = 'Study one region at a time';
+	title.textContent = t('rail_title');
 	const kids = [title];
 	const button = (r, sub) => {
 		const b = document.createElement('button');
@@ -2104,7 +2120,7 @@ function renderRail() {
 		if (sub) b.className = 'sub';
 		b.setAttribute('aria-pressed', String(state.region === r.key));
 		const l = document.createElement('span');
-		l.textContent = r.label;
+		l.textContent = regionName(r.key);
 		const n = document.createElement('em');
 		n.textContent = COUNTRIES.filter((c) => inRegion(c, r.key)).length;
 		b.append(l, n);
@@ -2124,7 +2140,7 @@ $('rail').addEventListener('click', (e) => {
 	const b = e.target.closest('button[data-region]');
 	if (!b) return;
 	const key = b.dataset.region;
-	guardTest(key === state.region ? 'Restarting' : `Switching to ${regionLabel(key)}`, () => {
+	guardTest(key === state.region ? t('restarting') : t('switching_to', { region: regionLabel(key) }), () => {
 		state.region = key;
 		store.set('region', key);
 		renderRail();
@@ -2134,6 +2150,8 @@ $('rail').addEventListener('click', (e) => {
 });
 function renderZoom() {
 	const grid = $('zoomGrid');
+	if (grid.dataset.lang !== lang()) grid.replaceChildren(); // built again in another language
+	grid.dataset.lang = lang();
 	if (!grid.children.length) {
 		ZOOM_KEYS.forEach((k, i) => {
 			const b = document.createElement('button');
@@ -2141,7 +2159,7 @@ function renderZoom() {
 			b.className = 'zchip';
 			b.dataset.area = k;
 			const l = document.createElement('span');
-			l.textContent = AREAS[k].label;
+			l.textContent = regionName(k);
 			const kb = document.createElement('kbd');
 			kb.textContent = String((i + 1) % 10);
 			b.append(l, kb);
@@ -2156,15 +2174,9 @@ $('zoomGrid').addEventListener('click', (e) => {
 	frameArea(b.dataset.area);
 	closeViewSheetOnPhone();
 });
-const MODE_HINT = {
-	study: 'Step through each country with the arrows, or click any country to see its capital. No score.',
-	practice: 'Misses come back until you get them right. Countries you’ve missed before come up first.',
-	test: 'Every country in the region once, timed. Your best score is saved for each region.',
-};
-const FORMAT_HINT = {
-	click: 'You get a capital; click its country. Small countries have a ring you can click.',
-	type: 'A country lights up; type its capital. Accents don’t matter. On Easy, a small spelling slip counts as half a point.',
-};
+// the hints under each setting, in the language in use
+const MODE_HINT = { study: () => S.hint('study'), practice: () => t('hint_practice'), test: () => t('hint_test') };
+const FORMAT_HINT = { click: () => S.hint('click'), type: () => S.hint('type') };
 function renderSegs() {
 	$('imagesModeBtn').hidden = !state.pins; // the hidden mode shows up in the bar only while it's on
 	for (const [id, v] of [['modeSeg', state.pins ? 'images' : state.mode], ['formatSeg', state.format], ['viewSeg', state.view]]) {
@@ -2172,36 +2184,29 @@ function renderSegs() {
 	}
 	$('modeHint').textContent = state.pins
 		? `Pick a country, then paste a picture onto it (${PASTE_KEY}), upload one, or drag one onto the country. Pictures stay in this browser only. I turns this mode off.`
-		: MODE_HINT[state.mode];
-	$('formatHint').textContent = FORMAT_HINT[state.format];
+		: MODE_HINT[state.mode]();
+	$('formatHint').textContent = FORMAT_HINT[state.format]();
 	for (const b of $('levelSeg').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.level));
-	$('levelHint').textContent = LEVEL_HINT[state.format][state.level];
+	$('levelHint').textContent = LEVEL_HINT[state.format][state.level]();
 	$('levelBox').hidden = state.mode === 'study';
 	$('searchBox').hidden = state.mode !== 'study';
 	renderDock();
-	$('keysHint').innerHTML =
-		'<kbd>←</kbd><kbd>→</kbd> previous / next · <kbd>1</kbd>–<kbd>0</kbd> zoom · <kbd>+</kbd><kbd>−</kbd> zoom in / out · <kbd>Esc</kbd> deselect, then back to the region ·<kbd>G</kbd> globe / flat map · <kbd>V</kbd> voice · <kbd>L</kbd> water names · <kbd>C</kbd> clean view';
+	$('keysHint').innerHTML = t('keys');
 }
 const LEVEL_HINT = {
-	click: {
-		easy: 'Countries you’ve answered stay green or red, and a wrong click tells you which country it was.',
-		hard: 'Clicks flash green or red, but nothing stays coloured until the end and wrong clicks aren’t named: each question stands on its own.',
-	},
-	type: {
-		easy: 'Guess as often as you like, skip back and forth between countries (Enter with nothing typed skips), or give up to see the answer. A small misspelling turns the country yellow and counts as half a point.',
-		hard: 'One try per country, spelled right (accents and capitals don’t matter). Enter with nothing typed gives up.',
-	},
+	click: { easy: () => t('hint_click_easy'), hard: () => t('hint_click_hard') },
+	type: { easy: () => t('hint_type_easy'), hard: () => S.hint('type_hard') },
 };
 // Bottom buttons: Previous / Next in Study; Back / Skip / Give up for Easy typing; Show me (or Skip) otherwise
 function renderDock() {
 	const study = state.mode === 'study', nav = typeEasy() && !review;
 	$('prevBtn').hidden = !(study || nav);
 	$('nextBtn').hidden = !(study || nav);
-	$('prevBtn').textContent = nav ? '← Back' : '← Previous';
-	$('nextBtn').textContent = nav ? 'Skip →' : 'Next →';
+	$('prevBtn').textContent = '← ' + (nav ? t('back') : t('prev'));
+	$('nextBtn').textContent = (nav ? t('skip') : t('next')) + ' →';
 	$('giveUpBtn').hidden = !nav;
 	$('skipBtn').hidden = study || nav || !!review;
-	$('skipBtn').textContent = state.mode === 'test' ? 'Skip' : 'Show me';
+	$('skipBtn').textContent = state.mode === 'test' ? t('skip') : t('show_me');
 }
 function renderBest() {
 	const el = $('best');
@@ -2211,10 +2216,10 @@ function renderBest() {
 	}
 	const b = store.get('best', {})[bestKey()];
 	if (!b) {
-		el.textContent = 'No saved result for this selection yet.';
+		el.textContent = t('no_best');
 		return;
 	}
-	el.innerHTML = `Best here: <b>${b.score}/${b.total}</b> in <b>${fmtTime(b.ms)}</b>`;
+	el.innerHTML = t('best_here', { score: b.score, total: b.total, time: fmtTime(b.ms) });
 }
 function renderAll() {
 	renderSegs();
@@ -2259,12 +2264,12 @@ $('modeSeg').addEventListener('click', (e) => {
 	if (!v || v === (state.pins ? 'images' : state.mode)) return;
 	if (v === 'images') return setPins(true);
 	if (v === 'study' && state.pins) return setPins(false); // from Images back to plain Study (from Practice or Test, a normal switch)
-	guardTest('Changing mode', () => setMode(v));
+	guardTest(t('changing_mode'), () => setMode(v));
 });
 $('formatSeg').addEventListener('click', (e) => {
 	const b = e.target.closest('button[data-v]');
 	if (!b || b.dataset.v === state.format) return;
-	guardTest('Changing the question type', () => setFormat(b.dataset.v));
+	guardTest(t('changing_format'), () => setFormat(b.dataset.v));
 });
 $('viewSeg').addEventListener('click', (e) => {
 	const b = e.target.closest('button[data-v]');
@@ -2278,7 +2283,7 @@ $('giveUpBtn').addEventListener('click', skip);
 $('levelSeg').addEventListener('click', (e) => {
 	const b = e.target.closest('button[data-v]');
 	if (!b || b.dataset.v === state.level) return;
-	guardTest('Changing the difficulty', () => {
+	guardTest(t('changing_level'), () => {
 		state.level = b.dataset.v;
 		store.set('level', state.level);
 		renderSegs();
@@ -2308,8 +2313,9 @@ $('search').addEventListener('input', () => {
 		return;
 	}
 	// other names for a country count too ("turkey" finds Türkiye)
-	const hits = COUNTRIES.filter((c) => [c.name, c.capital, ...(c.alts || []), ...(COUNTRY_WORDS[c.id] || [])].some((s) => norm(s).includes(q)))
-		.sort((a, b) => Number(!norm(a.name).startsWith(q)) - Number(!norm(b.name).startsWith(q)) || a.name.localeCompare(b.name))
+	// the names in the language in use count, and the English ones
+	const hits = COUNTRIES.filter((c) => [nameOf(c), capitalOf(c), c.name, c.capital, ...(c.alts || []), ...(COUNTRY_WORDS[c.id] || [])].some((s) => norm(s).includes(q)))
+		.sort((a, b) => Number(!norm(nameOf(a)).startsWith(q)) - Number(!norm(nameOf(b)).startsWith(q)) || nameOf(a).localeCompare(nameOf(b), locale()))
 		.slice(0, 12);
 	list.replaceChildren(
 		...hits.map((c) => {
@@ -2317,9 +2323,9 @@ $('search').addEventListener('input', () => {
 			const b = document.createElement('button');
 			b.type = 'button';
 			const a = document.createElement('span');
-			a.textContent = c.name;
+			a.textContent = nameOf(c);
 			const d = document.createElement('span');
-			d.textContent = c.capital;
+			d.textContent = capitalOf(c);
 			b.append(a, d);
 			b.addEventListener('click', () => {
 				if (!inScope(c)) {
@@ -2383,7 +2389,7 @@ function guardTest(what, action) {
 		return;
 	}
 	const answered = session.total - session.queue.length - 1;
-	$('confirmMsg').textContent = `You’ve answered ${answered} of ${session.total} (${regionLabel()}). ${what} ends this test, and it won’t count toward your best score.`;
+	$('confirmMsg').textContent = t('confirm_msg', { a: answered, n: session.total, region: regionLabel(), what });
 	pendingConfirm = { action, t0: performance.now() };
 	$('confirm').hidden = false;
 	$('confirmNo').focus();
@@ -2407,7 +2413,7 @@ $('homeLink').addEventListener('click', (e) => {
 	if (!testInProgress()) return;
 	e.preventDefault();
 	const href = e.currentTarget.href;
-	guardTest('Leaving this page', () => {
+	guardTest(t('leaving'), () => {
 		location.href = href;
 	});
 });
@@ -2415,11 +2421,13 @@ $('homeLink').addEventListener('click', (e) => {
 /* ---------------- spinning globe (hidden) ---------------- */
 // S on the globe: everything but the globe fades away, the globe tilts to show the north (where most
 // capitals are) and turns on its own the way the Earth does, every capital marked and named where
-// there's room. S again goes faster (three speeds, then back to the first); Esc stops it and puts the
-// view back. You can still drag and zoom; clicks don't select anything. Not listed in the key hints.
+// there's room. S again goes faster (three speeds, then back to the first); Space pauses it and starts
+// it again; Esc stops it and puts the view back. You can still drag and zoom; clicks don't select
+// anything. Not listed in the key hints.
 function spinKey() {
 	if (spin.on) {
 		spin.level = (spin.level % 3) + 1;
+		if (spin.paused) pauseSpin(); // faster from a pause starts it again
 		return;
 	}
 	if (state.view !== 'globe' || !proj) return;
@@ -2427,6 +2435,7 @@ function spinKey() {
 	spin.on = true;
 	spin.level = 1;
 	spin.speed = 0;
+	spin.paused = false;
 	spin.last = spin.fxLast = 0;
 	spin.labels.clear();
 	spin.back = { cam: { ...cam }, zoomArea: state.zoomArea };
@@ -2436,9 +2445,18 @@ function spinKey() {
 	keepGlobeSize(resize); // the globe gets the whole screen
 	flyTo({ lon: cam.lon, lat: 20, zoom: 0.92 }, 1400);
 }
+// Space: the globe slows to a stop in about a second, and stands still at full detail until Space again
+// (or S) starts it, easing up to speed as when it began. Dragging and zooming still work while it's paused.
+function pauseSpin() {
+	if (!spin.on) return;
+	spin.paused = !spin.paused;
+	spin.last = spin.fxLast = 0;
+	invalidate(false);
+}
 function stopSpin() {
 	if (!spin.on) return;
 	spin.on = false;
+	spin.paused = false;
 	document.body.classList.remove('spinning');
 	keepGlobeSize(resize);
 	flyTo(spin.back.cam, 1000);
@@ -2453,13 +2471,19 @@ function keepGlobeSize(fn) {
 	constrain();
 	updateProj();
 }
-// One frame of the turn, eased between speeds. It waits while the camera flies in.
+// One frame of the turn, eased between speeds (and to a stop, faster, when paused). It waits while the
+// camera flies in.
 function stepSpin(now) {
 	if (!spin.on) return;
 	const dt = spin.last ? Math.min(0.1, (now - spin.last) / 1000) : 0;
 	spin.last = now;
-	if (fly) return;
-	spin.speed += (SPIN_SPEEDS[spin.level] - spin.speed) * Math.min(1, dt * 1.2);
+	if (fly || spinStill()) return;
+	spin.speed += ((spin.paused ? 0 : SPIN_SPEEDS[spin.level]) - spin.speed) * Math.min(1, dt * (spin.paused ? 4 : 1.2));
+	if (spin.paused && spin.speed < 0.05) {
+		spin.speed = 0; // stopped: no longer moving, so the globe is drawn once more at full detail
+		settle();
+		return;
+	}
 	cam.lon -= spin.speed * dt; // west to east, like the Earth
 	constrain();
 	updateProj();
@@ -2468,7 +2492,7 @@ function stepSpin(now) {
 }
 // Every capital on the near side, fading toward the rim, and as many names as fit. Names already
 // showing keep their place, then the biggest countries' capitals go first, so names don't flicker
-// as the globe turns; they fade in and out instead of popping.
+// as the globe turns; they fade in and out instead of popping. Says whether any name is still fading.
 const spinWidths = new Map();
 function drawSpinFx(ctx, p, now) {
 	const dt = spin.fxLast ? Math.min(0.1, (now - spin.fxLast) / 1000) : 0;
@@ -2498,7 +2522,7 @@ function drawSpinFx(ctx, p, now) {
 	const placed = new Map(); // id -> left
 	for (const q of pts) {
 		if (q.face < 0.45) continue;
-		const w = textW(q.c.capital), prev = spin.labels.get(q.c.id);
+		const w = textW(S.label(q.c)), prev = spin.labels.get(q.c.id);
 		const right = [q.x + 6, q.y - lh / 2, q.x + 8 + w, q.y + lh / 2], left = [q.x - 8 - w, q.y - lh / 2, q.x - 6, q.y + lh / 2];
 		const order = prev && prev.left ? [[left, true], [right, false]] : [[right, false], [left, true]];
 		const ok = order.find(([b]) => clear(b));
@@ -2520,10 +2544,12 @@ function drawSpinFx(ctx, p, now) {
 	// names, faded in and out
 	ctx.textBaseline = 'middle';
 	ctx.lineJoin = 'round';
+	let fading = false;
 	for (const q of pts) {
 		const id = q.c.id, prev = spin.labels.get(id) || { a: 0, left: false };
 		const want = placed.has(id);
 		const a = prev.a + ((want ? 1 : 0) - prev.a) * Math.min(1, dt * 5);
+		if (want ? a < 0.99 : a >= 0.02) fading = true;
 		const lab = { a, left: want ? placed.get(id) : prev.left };
 		if (a < 0.02) {
 			spin.labels.delete(id);
@@ -2535,15 +2561,16 @@ function drawSpinFx(ctx, p, now) {
 		const x = lab.left ? q.x - 7 : q.x + 7;
 		ctx.lineWidth = 3;
 		ctx.strokeStyle = COL.labelHalo;
-		ctx.strokeText(q.c.capital, x, q.y);
+		ctx.strokeText(S.label(q.c), x, q.y);
 		ctx.fillStyle = COL.ring;
-		ctx.fillText(q.c.capital, x, q.y);
+		ctx.fillText(S.label(q.c), x, q.y);
 	}
 	// names whose capital went round the back
 	const front = new Set(pts.map((q) => q.c.id));
 	for (const id of spin.labels.keys()) if (!front.has(id)) spin.labels.delete(id);
 	ctx.globalAlpha = 1;
 	ctx.textAlign = 'left';
+	return fading;
 }
 
 /* ---------------- keyboard ---------------- */
@@ -2554,10 +2581,14 @@ document.addEventListener('keydown', (e) => {
 	}
 	const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
 	if (spin.on) {
-		// while the globe spins: S goes faster, Esc stops it, + and − zoom; nothing else
+		// while the globe spins: S goes faster, Space pauses, Esc stops it, + and − zoom; nothing else
 		const f = free();
+		const plain = !e.metaKey && !e.ctrlKey && !e.altKey;
 		if (e.key === 'Escape') stopSpin();
-		else if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && !e.altKey) spinKey();
+		else if ((e.key === 's' || e.key === 'S') && plain) spinKey();
+		else if (e.key === ' ' && plain) {
+			if (!e.repeat) pauseSpin(); // held down, it doesn't flicker between paused and turning
+		}
 		else if (e.key === '+' || e.key === '=') zoomAround(f.cx, f.cy, 1.25);
 		else if (e.key === '-' || e.key === '_') zoomAround(f.cx, f.cy, 1 / 1.25);
 		else return;
@@ -2810,6 +2841,10 @@ function voiceDo(cmd, text) {
 		what = AREAS[cmd.area].label;
 	} else if (cmd.country) {
 		const c = BY_ID.get(cmd.country);
+		if (S.namesAnswer && session && !review && state.mode !== 'study') {
+			voiceStatus(`“${text}”: country names aren’t commands during a quiz here`, 'bad');
+			return;
+		}
 		state.zoomArea = null;
 		renderZoom();
 		flyTo(camForCountry(c));
@@ -2835,13 +2870,38 @@ function setNames(on, announce) {
 	store.set('waterNames', on);
 	$('namesBtn').setAttribute('aria-pressed', String(on));
 	invalidate();
-	if (announce) toast(on ? 'Water names on.' : 'Water names off.');
+	if (announce) toast(on ? t('names_on') : t('names_off'));
 }
 $('namesBtn').setAttribute('aria-pressed', String(state.names));
 $('namesBtn').addEventListener('click', () => setNames(!state.names));
 document.addEventListener('visibilitychange', () => {
 	if (!document.hidden && voice.on && !voice.rec) voiceStart();
 });
+
+/* ---------------- language ---------------- */
+// /js/language.js picked it (a ?lang= link, then the one picked in this tool, then the one picked last on the site, then
+// the browser's) and runs the menu; the page's fixed text (data-i18n) follows it. Voice answers are English only.
+
+// the credit line says where the names come from, in a language other than English
+function namesCredit() {
+	if (lang() !== 'en') document.querySelector('.credit').append(' ' + t('names_credit'));
+}
+function onLanguage() {
+	namesCredit();
+	if (COUNTRIES.length) checkAnswer = makeChecker(S, COUNTRIES);
+	renderRail();
+	renderZoom();
+	renderAll();
+	if (callout) {
+		const c = BY_ID.get(callout.id);
+		if (c && !review) calloutFor(c);
+		else if (c) setCallout(c.id, S.callout(c).title, S.callout(c).sub, S.callout(c).flag);
+	}
+	$('search').dispatchEvent(new Event('input'));
+	baseDirty = true;
+	invalidate();
+	resize();
+}
 
 /* ---------------- sizing ---------------- */
 function resize() {
@@ -2877,22 +2937,24 @@ if (window.ResizeObserver) {
 /* ---------------- boot ---------------- */
 async function boot() {
 	const bar = $('loadBar');
-	const [countries, xlow] = await Promise.all([
-		fetch('data/countries.json').then((r) => {
+	const [countries, xlow, language] = await Promise.all([
+		fetch(DATA + 'countries.json').then((r) => {
 			if (!r.ok) throw new Error('HTTP ' + r.status);
 			return r.json();
 		}),
-		fetch('data/map-xlow.json').then((r) => {
+		fetch(DATA + 'map-xlow.json').then((r) => {
 			if (!r.ok) throw new Error('HTTP ' + r.status);
 			return r.json();
 		}),
+		SiteLanguage.open({ layers: [{ text: EN, files: new URL('lang/', import.meta.url) }], prefix: S.key }),
 	]);
 	bar.value = 0.8;
 	COUNTRIES = countries;
-	for (const c of COUNTRIES) {
-		BY_ID.set(c.id, c);
-		for (const s of [c.capital, ...(c.alts || [])]) if (!CAPITAL_INDEX.has(norm(s))) CAPITAL_INDEX.set(norm(s), c);
-	}
+	for (const c of COUNTRIES) BY_ID.set(c.id, c);
+	useLanguage(language);
+	checkAnswer = makeChecker(S, COUNTRIES);
+	namesCredit();
+	language.onChange(onLanguage);
 	LOD.xlow = useTopology(xlow);
 	buildMeta(LOD.xlow);
 	buildVoice();
@@ -2911,7 +2973,7 @@ async function boot() {
 	loadSeas().catch(() => {});
 	// more detail in the background
 	const more = (name) =>
-		fetch(`data/map-${name}.json`)
+		fetch(`${DATA}map-${name}.json`)
 			.then((r) => r.json())
 			.then((t) => {
 				LOD[name] = useTopology(t);
@@ -2925,9 +2987,10 @@ async function boot() {
 		window.__capitalAtlas = {
 			state, cam, COUNTRIES, BY_ID, META, LOD, pickAt, setView, setMode, setFormat, startSession, submitAnswer, onMapClick, frameArea,
 			parseVoice, checkAnswer, free, getSession: () => session, getStudy: () => study, getReview: () => review, project: (ll) => projectPoint(proj, ll),
-			camForCountry, screen, geoContains, bestFeats, waterAt, WATER, webZoom, getHoverIdx: () => hoverIdx,
+			camForCountry, screen, geoContains, bestFeats, waterAt, WATER, webZoom, getHoverIdx: () => hoverIdx, targetId, S,
 			PINS, iconLL, setPins, removePin, setPinSize, pinRects: () => pinRects, loadPins, landMiddle,
 			pinFromUrl: (url, id) => pinPicture(urlImage(url), id),
+			spin, looping: () => !!raf, getMoving: () => moving,
 			prof: (c, fast) => {
 				Object.assign(cam, c);
 				constrain();
@@ -2969,5 +3032,5 @@ async function boot() {
 }
 boot().catch((err) => {
 	console.error(err);
-	$('loadMsg').textContent = 'The world map didn’t load. Check your connection and reload the page.';
+	$('loadMsg').textContent = SiteLanguage.bootText('load_fail');
 });

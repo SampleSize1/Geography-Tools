@@ -1,18 +1,19 @@
 <!doctype html>
-<html lang="en">
+<!-- Made from World Capitals' page by tools-src/capital-atlas/pages.mjs: edit that page, not this one -->
+<html lang="en" data-subject="countries">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a0f14">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="canonical" href="https://samplesize1.com/tools/capital-atlas/">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://samplesize1.com/tools/country-atlas/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="World Capitals">
-<meta property="og:description" content="Learn the capital of every country on a 3D globe or a flat map. Study, practice and timed tests by region, for all 197 countries. Free, by SampleSize_1.">
-<meta property="og:url" content="https://samplesize1.com/tools/capital-atlas/">
+<meta property="og:title" content="World Countries">
+<meta property="og:description" content="Learn where every country is on a 3D globe or a flat map. Study, practice and timed tests by region, for all 197 countries. Free, by SampleSize_1.">
+<meta property="og:url" content="https://samplesize1.com/tools/country-atlas/">
 <meta property="og:image" content="https://samplesize1.com/og.png">
 <meta name="twitter:card" content="summary_large_image">
-<title>World Capitals</title>
-<meta name="description" content="Learn the capital of every country on a 3D globe or a flat map. Study, practice and timed tests by region, for all 197 countries. Free, by SampleSize_1.">
+<title>World Countries</title>
+<meta name="description" content="Learn where every country is on a 3D globe or a flat map. Study, practice and timed tests by region, for all 197 countries. Free, by SampleSize_1.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -65,6 +66,11 @@ body {
   color: var(--bone); font-weight: 700; font-stretch: 106%; font-size: 14px; padding: 5px 10px;
 }
 .callout small { display: block; font-weight: 500; font-size: 11.5px; color: var(--muted); font-stretch: 100%; }
+/* World Flags runs on this page code: its flags in the prompt and the callout (nothing here uses them) */
+.callout img.flag { display: block; height: 30px; width: auto; margin-bottom: 5px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(236, 222, 194, 0.3); }
+.pname img.flag { height: 0.9em; width: auto; vertical-align: -0.08em; margin-right: 0.35em; border-radius: 2px; box-shadow: 0 0 0 1px rgba(236, 222, 194, 0.3); }
+.pname.flag-only { line-height: 1 !important; padding: 3px 1px; }
+.pname.flag-only img.flag { height: 2.2em; margin: 0; vertical-align: top; }
 
 .ui {
   position: fixed; inset: 0;
@@ -194,7 +200,7 @@ body.clean .ractions, body.clean .rhint { display: none; }
   scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
 }
 .panel h3 { margin: 0 0 7px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
-.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; }
 .seg button { font: inherit; font-weight: 600; font-size: 13px; color: var(--muted); background: transparent; border: 0; border-radius: 6px; padding: 7px 6px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--bg-lift); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .seg button:hover { color: var(--fg); }
@@ -250,17 +256,21 @@ body.clean .ractions, body.clean .rhint { display: none; }
 .vc-sec { display: grid; gap: 5px; }
 .vc-sec h4 { margin: 0 0 0 4px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
 .viewcard .seg button { padding: 5px 6px; font-size: 12.5px; }
-.zp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.zp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 .zchip {
   font: inherit; font-size: 12.5px; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 7px;
-  padding: 4px 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; text-align: left; white-space: nowrap;
+  padding: 4px 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; text-align: left; white-space: nowrap; min-width: 0;
 }
+/* a longer name in another language wraps rather than pushing the card wider */
+.zchip span { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
 .zchip kbd { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
 .zchip:hover { border-color: var(--line-strong); }
 .zchip[aria-pressed="true"] { border-color: var(--scan); background: rgba(111, 208, 232, 0.09); }
 .zchip[aria-pressed="true"] kbd { color: var(--scan); }
-.vc-tools { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
-.vc-tools .btn { padding: 6px 4px; font-size: 12px; white-space: nowrap; }
+.vc-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.vc-tools .btn { padding: 6px 4px; font-size: 12px; white-space: nowrap; min-width: 0; }
+.vc-tools .btn, .viewcard .seg button { overflow-wrap: anywhere; }
+html:not([lang="en"]) .vc-tools .btn { white-space: normal; } /* other languages' longer words wrap */
 .viewcard .hint { margin: 0 4px; font-size: 11.5px; }
 .narrow-only { display: none; }
 @media (min-width: 901px) and (max-height: 840px) {
@@ -366,43 +376,45 @@ body.spinning .ui, body.spinning .callout, body.spinning #leader { opacity: 0; v
 .close-sheet { display: none; justify-self: end; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
+<!-- Languages for the tools on this site (picking one, the menu, saving the choice) -->
+<script src="../js/language.js"></script>
 
 <div id="stage">
-  <canvas id="map" tabindex="0" aria-label="Map of the world. Drag to move, scroll or pinch to zoom, click a country to select it."></canvas>
+  <canvas id="map" tabindex="0" aria-label="Map of the world. Drag to move, scroll or pinch to zoom, click a country to select it." data-i18n-aria="map_aria"></canvas>
   <canvas id="fx" aria-hidden="true"></canvas>
   <canvas id="labels" aria-hidden="true"></canvas>
 </div>
 <svg id="leader" aria-hidden="true"><line id="leaderLine" x1="0" y1="0" x2="0" y2="0"></line></svg>
-<div class="callout" id="callout" hidden></div>
+<div class="callout" id="callout" dir="auto" hidden></div>
 
 <div class="ui">
   <div class="brand">
     <div class="lockup">
       <!-- the SampleSize_1 logo (the [1] mark), drawn in this tool's blue; links back to the main site -->
-      <a class="home" id="homeLink" href="https://samplesize1.com/" aria-label="SampleSize_1 home page">
+      <a class="home" id="homeLink" href="https://samplesize1.com/" aria-label="SampleSize_1 home page" data-i18n-aria="home_aria">
         <svg class="logo-mark" viewBox="516 555 968 888" fill="currentColor" aria-hidden="true" focusable="false">
           <path d="M516 555H772V670H663V1328H772V1443H516Z"></path>
           <path d="M1484 555H1227V670H1335V1328H1227V1443H1484Z"></path>
           <path d="M864 733L1092 698V1320H964V823L864 840Z"></path>
         </svg>
       </a>
-      <div class="mark">WORLD <span>CAPITALS</span></div>
+      <div class="mark">WORLD <span>COUNTRIES</span></div>
     </div>
-    <div class="sub">Learn the capital of every country</div>
+    <div class="sub" data-i18n="sub">Find every country on the map</div>
   </div>
 
   <div class="prompt" id="prompt" aria-live="polite">
-    <div class="eyebrow" id="pEyebrow">Loading</div>
-    <div class="pname" id="pName">World map</div>
+    <div class="eyebrow" id="pEyebrow" data-i18n="loading">Loading</div>
+    <div class="pname" id="pName" dir="auto" data-i18n="world_map">World map</div>
     <div class="pmeta" id="pMeta">&nbsp;</div>
     <div class="pbar" id="pBarWrap"><i id="pBar"></i></div>
     <!-- Extra lines (a tip, the answer box, the results) hang below the card instead of growing it,
          so the map underneath never moves. -->
     <div class="pmore" id="pMore" hidden>
-      <div class="ptip" id="pTip" hidden></div>
+      <div class="ptip" id="pTip" dir="auto" hidden></div>
       <form class="answer" id="answerForm" hidden autocomplete="off">
-        <input id="answer" type="text" placeholder="Type the capital" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Your answer">
-        <button class="btn primary" type="submit">Enter</button>
+        <input id="answer" type="text" placeholder="Type the country" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Your answer" data-i18n-aria="answer_aria" dir="auto">
+        <button class="btn primary" type="submit" data-i18n="enter">Enter</button>
       </form>
       <!-- Images mode: put a picture on the selected country -->
       <div class="pinbar" id="pinBar" hidden>
@@ -418,101 +430,109 @@ body.spinning .ui, body.spinning .callout, body.spinning #leader { opacity: 0; v
       <div class="review" id="review" hidden>
         <div class="legend">
           <span class="key ok"><i></i><b id="rOk">0</b> <span id="rOkLabel">correct</span></span>
-          <span class="key close" id="rCloseKey" hidden><i></i><b id="rClose">0</b> <span>misspelled (½ point)</span></span>
+          <span class="key close" id="rCloseKey" hidden><i></i><b id="rClose">0</b> <span data-i18n="r_misspelled">misspelled (½ point)</span></span>
           <span class="key bad"><i></i><b id="rBad">0</b> <span id="rBadLabel">missed</span></span>
         </div>
-        <p class="rhint">Click any country to see how it went.</p>
+        <p class="rhint" data-i18n="r_hint">Click any country to see how it went.</p>
         <div class="row ractions">
-          <button class="btn primary" id="rAgain" type="button">Go again</button>
-          <button class="btn" id="rPractice" type="button">Practise the misses</button>
+          <button class="btn primary" id="rAgain" type="button" data-i18n="r_again">Go again</button>
+          <button class="btn" id="rPractice" type="button" data-i18n="r_practice">Practise the misses</button>
         </div>
       </div>
     </div>
   </div>
 
   <div class="stats" id="stats">
-    <div class="stat"><small>Accuracy</small><b id="sAcc">–</b></div>
-    <div class="stat"><small>Time</small><b id="sTime">0:00</b></div>
-    <div class="stat"><small>Streak</small><b id="sStreak">0</b></div>
+    <div class="stat"><small data-i18n="stat_acc">Accuracy</small><b id="sAcc">–</b></div>
+    <div class="stat"><small data-i18n="stat_time">Time</small><b id="sTime">0:00</b></div>
+    <div class="stat"><small data-i18n="stat_streak">Streak</small><b id="sStreak">0</b></div>
   </div>
 
   <div class="leftcol">
-    <nav class="rail" id="rail" aria-label="Regions"></nav>
+    <nav class="rail" id="rail" aria-label="Regions" data-i18n-aria="rail_aria"></nav>
 
-    <section class="viewcard" id="viewCard" aria-label="View">
+    <section class="viewcard" id="viewCard" aria-label="View" data-i18n-aria="view">
       <div class="vc-head">
-        <h3>View</h3>
+        <h3 data-i18n="view">View</h3>
         <div class="vc-head-actions">
-          <button class="voice-btn names-btn" id="namesBtn" type="button" aria-pressed="true" title="Names of oceans, seas, lakes and rivers on the map (L)"><i></i>Names</button>
+          <button class="voice-btn names-btn" id="namesBtn" type="button" aria-pressed="true" title="Names of oceans, seas, lakes and rivers on the map (L)" data-i18n-title="names_title"><i></i><span data-i18n="names">Names</span></button>
           <button class="voice-btn" id="voiceBtn" type="button" aria-pressed="false" title="Voice commands (V). Say a place, like “Caribbean”, “Japan” or “Europe”, or “globe” / “map”."><i></i>Voice</button>
-          <button class="btn close-sheet" id="closeView" type="button">Done</button>
+          <button class="btn close-sheet" id="closeView" type="button" data-i18n="done">Done</button>
         </div>
       </div>
       <p class="voice-heard" id="voiceHeard" aria-live="polite" hidden></p>
       <div class="vc-sec">
         <div class="seg" id="viewSeg">
-          <button type="button" data-v="globe" title="3D globe (G switches)">Globe</button>
-          <button type="button" data-v="map" title="Flat map (G switches)">Flat map</button>
+          <button type="button" data-v="globe" title="3D globe (G switches)" data-i18n="globe" data-i18n-title="globe_title">Globe</button>
+          <button type="button" data-v="map" title="Flat map (G switches)" data-i18n="flat" data-i18n-title="flat_title">Flat map</button>
         </div>
       </div>
       <div class="vc-sec">
-        <h4>Zoom to</h4>
+        <h4 data-i18n="zoom_to">Zoom to</h4>
         <div class="zp-grid" id="zoomGrid"></div>
       </div>
       <div class="vc-tools">
-        <button class="btn" id="zoomOutBtn" type="button" title="Zoom out (−)">Zoom −</button>
-        <button class="btn" id="zoomInBtn" type="button" title="Zoom in (+)">Zoom +</button>
-        <button class="btn" id="resetBtn" type="button" title="Back to the region you’re studying (Esc)">Reset view</button>
+        <button class="btn" id="zoomOutBtn" type="button" title="Zoom out (−)" data-i18n="zoom_out" data-i18n-title="zoom_out_title">Zoom −</button>
+        <button class="btn" id="zoomInBtn" type="button" title="Zoom in (+)" data-i18n="zoom_in" data-i18n-title="zoom_in_title">Zoom +</button>
+        <button class="btn" id="resetBtn" type="button" title="Back to the region you’re studying (Esc)" data-i18n="reset" data-i18n-title="reset_title">Reset view</button>
       </div>
-      <p class="hint narrow-only">Zoom only moves the map; the quiz carries on. Pinch to zoom, drag to move.</p>
+      <p class="hint narrow-only" data-i18n="view_hint_narrow">Zoom only moves the map; the quiz carries on. Pinch to zoom, drag to move.</p>
     </section>
   </div>
 
-  <aside class="panel" id="panel" aria-label="Settings">
-    <button class="btn close-sheet" id="closeSheet" type="button">Done</button>
+  <aside class="panel" id="panel" aria-label="Settings" data-i18n-aria="settings">
+    <button class="btn close-sheet" id="closeSheet" type="button" data-i18n="done">Done</button>
     <section>
-      <h3>Mode</h3>
+      <h3><label for="langSel" data-i18n="lang_title">Language</label></h3>
+      <span class="lang-pick">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/></svg>
+        <select id="langSel"></select>
+      </span>
+      <p class="hint" id="langNote" style="margin-top:7px" hidden></p>
+    </section>
+    <section>
+      <h3 data-i18n="mode">Mode</h3>
       <div class="seg" id="modeSeg">
-        <button type="button" data-v="study">Study</button>
-        <button type="button" data-v="practice">Practice</button>
-        <button type="button" data-v="test">Test</button>
+        <button type="button" data-v="study" data-i18n="mode_study">Study</button>
+        <button type="button" data-v="practice" data-i18n="mode_practice">Practice</button>
+        <button type="button" data-v="test" data-i18n="mode_test">Test</button>
         <!-- the hidden Images mode (I, or #images): only shown while it's on -->
         <button type="button" data-v="images" id="imagesModeBtn" hidden>Images</button>
       </div>
       <p class="hint" id="modeHint" style="margin-top:7px"></p>
     </section>
     <section>
-      <h3>Questions</h3>
+      <h3 data-i18n="questions">Questions</h3>
       <div class="seg" id="formatSeg">
-        <button type="button" data-v="click">Click the capital</button>
-        <button type="button" data-v="type">Type the capital</button>
+        <button type="button" data-v="click" data-i18n="fmt_click">Click the country</button>
+        <button type="button" data-v="type" data-i18n="fmt_type">Type the name</button>
       </div>
       <p class="hint" id="formatHint" style="margin-top:7px"></p>
     </section>
     <section id="levelBox">
-      <h3>Difficulty</h3>
+      <h3 data-i18n="difficulty">Difficulty</h3>
       <div class="seg" id="levelSeg">
-        <button type="button" data-v="easy">Easy</button>
-        <button type="button" data-v="hard">Hard</button>
+        <button type="button" data-v="easy" data-i18n="easy">Easy</button>
+        <button type="button" data-v="hard" data-i18n="hard">Hard</button>
       </div>
       <p class="hint" id="levelHint" style="margin-top:7px"></p>
     </section>
     <section id="searchBox" hidden>
-      <h3>Find a country</h3>
-      <input id="search" type="search" placeholder="Country or capital, e.g. Peru, Oslo" autocomplete="off">
+      <h3 data-i18n="find">Find a country</h3>
+      <input id="search" type="search" placeholder="Country or capital, e.g. Peru, Oslo" autocomplete="off" data-i18n-ph="search_ph" dir="auto">
       <ul class="results-list" id="searchList"></ul>
     </section>
     <section>
       <div class="best" id="best"></div>
       <div class="row" style="margin-top:8px">
-        <button class="btn primary" id="restartBtn" type="button">Restart</button>
-        <button class="btn" id="cleanBtn" type="button">Clean view</button>
+        <button class="btn primary" id="restartBtn" type="button" data-i18n="restart">Restart</button>
+        <button class="btn" id="cleanBtn" type="button" data-i18n="clean">Clean view</button>
       </div>
       <p class="hint" id="keysHint" style="margin-top:8px"></p>
     </section>
-    <p class="credit">
-      Map: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
-      Capitals checked October 2026. Made by @samplesize_1.
+    <p class="credit" data-i18n-html="credit">
+      Map: <a data-i18n-link="ne" href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+      The 197 countries of World Capitals. Made by @samplesize_1.
     </p>
   </aside>
 
@@ -520,35 +540,67 @@ body.spinning .ui, body.spinning .callout, body.spinning #leader { opacity: 0; v
     <button class="btn" id="prevBtn" type="button">← Previous</button>
     <button class="btn" id="nextBtn" type="button">Next →</button>
     <button class="btn" id="skipBtn" type="button">Show me</button>
-    <button class="btn" id="giveUpBtn" type="button" hidden>Give up</button>
-    <button class="btn" id="viewBtn" type="button" aria-controls="viewCard">View</button>
-    <button class="btn" id="settingsBtn" type="button">Settings</button>
-    <button class="btn" id="cleanExit" type="button">Exit clean view</button>
+    <button class="btn" id="giveUpBtn" type="button" data-i18n="give_up" hidden>Give up</button>
+    <button class="btn" id="viewBtn" type="button" aria-controls="viewCard" data-i18n="view">View</button>
+    <button class="btn" id="settingsBtn" type="button" data-i18n="settings">Settings</button>
+    <button class="btn" id="cleanExit" type="button" data-i18n="clean_exit">Exit clean view</button>
   </div>
 </div>
 
-<div class="toast" id="toast" role="status"></div>
+<div class="toast" id="toast" role="status" dir="auto"></div>
 
 <div class="overlay" id="confirm" hidden role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMsg">
   <div class="card">
-    <h2 id="confirmTitle">End this test?</h2>
+    <h2 id="confirmTitle" data-i18n="confirm_title">End this test?</h2>
     <p id="confirmMsg"></p>
     <div class="row confirm-actions">
-      <button class="btn danger" id="confirmYes" type="button">End test</button>
-      <button class="btn primary" id="confirmNo" type="button">Keep going</button>
+      <button class="btn danger" id="confirmYes" type="button" data-i18n="end_test">End test</button>
+      <button class="btn primary" id="confirmNo" type="button" data-i18n="keep_going">Keep going</button>
     </div>
   </div>
 </div>
 
 <div class="overlay" id="loading">
   <div class="card">
-    <h2>World Capitals</h2>
-    <p id="loadMsg">Loading the world map…</p>
+    <h2>World Countries</h2>
+    <p id="loadMsg" data-i18n-boot="loading">Loading the world map…</p>
     <progress id="loadBar" max="1" value="0"></progress>
   </div>
 </div>
 
+<script>
+/* The language (/js/language.js): a ?lang= link, then the one picked in this tool before, then the one picked last on
+   the site, then the browser's, then English. Picked before the map's code runs, so the loading card is in it too.
+   The codes: English and the 25 languages Natural Earth names places in (tools-src/capital-atlas/lang.mjs). */
+SiteLanguage.start({
+  tool: 'country-atlas',
+  langs: ['en', 'ar', 'bn', 'de', 'el', 'es', 'fa', 'fr', 'he', 'hi', 'hu', 'id', 'it', 'ja', 'ko', 'nl', 'pl', 'pt', 'ru', 'sv', 'tr', 'uk', 'ur', 'vi', 'zh', 'zht'],
+  namesOnly: ['ar', 'bn', 'el', 'fa', 'he', 'hu', 'sv', 'ur'],   // names in that language, the rest of the page in English
+  // start-up text, shown before the map's code runs
+  boot: {
+    en: {"loading": "Loading the world map…", "load_fail": "The world map didn’t load. Check your connection and reload the page."},
+    de: {"loading": "Die Weltkarte wird geladen …", "load_fail": "Die Weltkarte wurde nicht geladen. Prüfe deine Verbindung und lade die Seite neu."},
+    es: {"loading": "Cargando el mapa del mundo…", "load_fail": "El mapa del mundo no se cargó. Revisa tu conexión y recarga la página."},
+    fr: {"loading": "Chargement de la carte du monde…", "load_fail": "La carte du monde ne s’est pas chargée. Vérifiez votre connexion et rechargez la page."},
+    hi: {"loading": "दुनिया का नक्शा लोड हो रहा है…", "load_fail": "दुनिया का नक्शा लोड नहीं हुआ। अपना कनेक्शन जाँचें और पेज फिर से लोड करें।"},
+    id: {"loading": "Memuat peta dunia…", "load_fail": "Peta dunia gagal dimuat. Periksa koneksimu lalu muat ulang halaman."},
+    it: {"loading": "Caricamento della mappa del mondo…", "load_fail": "La mappa del mondo non si è caricata. Controlla la connessione e ricarica la pagina."},
+    ja: {"loading": "世界地図を読み込んでいます…", "load_fail": "世界地図を読み込めませんでした。接続を確認して、ページを再読み込みしてください。"},
+    ko: {"loading": "세계 지도를 불러오는 중…", "load_fail": "세계 지도를 불러오지 못했어요. 연결을 확인하고 페이지를 새로고침하세요."},
+    nl: {"loading": "De wereldkaart wordt geladen…", "load_fail": "De wereldkaart is niet geladen. Controleer je verbinding en laad de pagina opnieuw."},
+    pl: {"loading": "Wczytywanie mapy świata…", "load_fail": "Mapa świata się nie wczytała. Sprawdź połączenie i odśwież stronę."},
+    pt: {"loading": "Carregando o mapa-múndi…", "load_fail": "O mapa-múndi não carregou. Verifique sua conexão e recarregue a página."},
+    ru: {"loading": "Загружается карта мира…", "load_fail": "Карта мира не загрузилась. Проверьте подключение и обновите страницу."},
+    tr: {"loading": "Dünya haritası yükleniyor…", "load_fail": "Dünya haritası yüklenemedi. Bağlantınızı kontrol edip sayfayı yenileyin."},
+    uk: {"loading": "Завантажується карта світу…", "load_fail": "Карта світу не завантажилася. Перевірте з’єднання й оновіть сторінку."},
+    vi: {"loading": "Đang tải bản đồ thế giới…", "load_fail": "Không tải được bản đồ thế giới. Hãy kiểm tra kết nối và tải lại trang."},
+    zh: {"loading": "正在加载世界地图…", "load_fail": "世界地图未能加载。请检查网络连接并刷新页面。"},
+    zht: {"loading": "正在載入世界地圖…", "load_fail": "世界地圖無法載入。請檢查網路連線並重新整理頁面。"}
+  },
+});
+</script>
+
 <!-- Saved progress (scores, settings) for the tools on this site: stays in this browser -->
-<script src="progress.js"></script>
-<script type="module" src="app.js"></script>
+<script src="../js/progress.js"></script>
+<script type="module" src="../capital-atlas/app.js"></script>
 </html>
