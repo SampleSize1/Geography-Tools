@@ -6,7 +6,8 @@ const KIND_WORDS = /\b(province|provincia|state|region|oblast|krai|okrug|county|
 // Letters that are not a plain letter with an accent on it, so taking accents off leaves them as they are
 const PLAIN = { đ: 'd', ð: 'd', ø: 'o', ł: 'l', ı: 'i', ß: 'ss', æ: 'ae', œ: 'oe', þ: 'th' };
 
-// Letters and digits only, accents off: "Côte-d'Or" -> "cotedor", "Đà Nẵng" -> "da nang"
+// Letters and digits only, accents off: "Côte-d'Or" -> "cote d or", "Đà Nẵng" -> "da nang". Letters of every alphabet
+// stay (Калифорния, 静岡県, كيرلا), so a name in any language compares
 export function norm(s) {
 	return String(s ?? '')
 		.normalize('NFD')
@@ -15,7 +16,8 @@ export function norm(s) {
 		.replace(/[đðøłıßæœþ]/g, (c) => PLAIN[c])
 		.replace(/&/g, ' and ')
 		.replace(/\bst\b\.?/g, 'saint')
-		.replace(/[^a-z0-9 ]/g, ' ')
+		.replace(/[\u02b9-\u02bf\u02c8]/g, '') // apostrophe letters (Ukrainian ʼ, Tongan ʻ) count as an apostrophe: none
+		.replace(/[^\p{L}\p{M}\p{N} ]/gu, ' ')
 		.replace(/\s+/g, ' ')
 		.trim();
 }

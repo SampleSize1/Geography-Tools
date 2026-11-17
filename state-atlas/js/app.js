@@ -7,7 +7,7 @@ import { feature } from '../../capital-atlas/geo.js';
 import { createMap, COL, rewind, mainCluster } from './map.js';
 import { norm } from './core/answer.js';
 import { newSession, current, finished, answerClick, answerType, giveUp, skip, summary, better } from './core/session.js';
-import { EN, t, useLanguage, language } from './text.js';
+import { EN, t, useLanguage, language, unitName, unitForms, countryName, countryForms, placeName, lakeName, typeName, kindCount, kindWhich } from './text.js';
 
 const $ = (id) => document.getElementById(id);
 const saved = window.SiteProgress ? window.SiteProgress.tool('state-atlas') : { get: (k, d) => d, set() {} };
@@ -37,7 +37,8 @@ function insets() {
 	if (spinning) return { left: 0, right: 0, top: 0, bottom: 0 }; // it has the whole screen
 	const pr = $('prompt').getBoundingClientRect();
 	if (narrow()) return { left: 10, right: 10, top: pr.bottom + 10, bottom: 74 };
-	const l = $('left').getBoundingClientRect(), r = $('right').getBoundingClientRect();
+	// the panels at either side (#left is on the right in a right-to-left language)
+	const [l, r] = [$('left').getBoundingClientRect(), $('right').getBoundingClientRect()].sort((a, b) => a.left - b.left);
 	return { left: l.right + 16, right: window.innerWidth - r.left + 16, top: pr.bottom + 14, bottom: 64 };
 }
 
@@ -61,7 +62,7 @@ const view = {
 	callouts() {
 		if (state.selected == null || !state.open) return [];
 		if (state.session && !state.review) return [];
-		return [{ i: state.selected, text: state.open.units[state.selected].name }];
+		return [{ i: state.selected, text: unitName(state.open.units[state.selected]) }];
 	},
 	names: () => state.names && state.mode === 'study' && !!state.open,
 };
@@ -105,7 +106,6 @@ function flash(i, color, ms = 700) {
 const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 const points = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const bestKey = () => `${state.open.id}|${state.mode}|${state.format}`;
-const kindOne = () => (state.open.kind === 'subdivisions' ? 'region' : state.open.kind.replace(/ies$/, 'y').replace(/s$/, ''));
 
 /* ---------- actions ---------- */
 async function openCountry(id, { animate = true } = {}) {
@@ -114,26 +114,26 @@ async function openCountry(id, { animate = true } = {}) {
 	setSheet(null);
 	let data = loaded.get(id);
 	if (!data) {
-		$('pMeta').textContent = t('loading_country', { name: meta.name });
+		$('pMeta').textContent = t('loading_country', { name: countryName(meta) });
 		try {
 			const res = await fetch(`data/sub/${id}.json`);
 			if (!res.ok) throw new Error(res.status);
 			data = await res.json();
 		} catch (err) {
-			toast(t('load_country_fail', { name: meta.name }), 'bad');
+			toast(t('load_country_fail', { name: countryName(meta) }), 'bad');
 			render();
 			return;
 		}
 		const fc = feature(data.topology, data.topology.objects.units);
 		fc.features.forEach((f, i) => {
-			f.properties = { name: data.units[i].name };
+			f.properties = { name: unitName(data.units[i]) };
 			rewind(f);
 		});
 		data.features = fc.features;
 		// what the view is fitted to: the country without one or two far-off units
 		const main = mainCluster(fc.features);
 		data.shape = main.shape;
-		data.far = main.far.map((i) => data.units[i].name).sort();
+		data.far = main.far;
 		loaded.set(id, data);
 	}
 	state.open = data;
@@ -186,8 +186,11 @@ function setFormat(format) {
 	if (state.open && state.mode !== 'study') startRound();
 	else render();
 }
+// A country's regions as a round asks them: each with its names in the language in use as other answers
+// (its English names always count)
+const askable = (o) => o.units.map((u) => ({ ...u, alts: [...(u.alts || []), ...unitForms(u)] }));
 function startRound(only = null) {
-	state.session = newSession(state.open.units, { mode: state.mode, format: state.format, only });
+	state.session = newSession(askable(state.open), { mode: state.mode, format: state.format, only });
 	state.review = null;
 	state.selected = null;
 	state.startedAt = performance.now();
@@ -220,7 +223,7 @@ function endRound() {
 }
 // After any answer: feedback, then the next question or the results
 function afterAnswer(res, pickedName) {
-	const s = state.session, name = state.open.units[res.target].name;
+	const s = state.session, name = unitName(state.open.units[res.target]);
 	if (res.outcome === 'ok') {
 		flash(res.target, COL.ok);
 		pulse('ok');
@@ -248,8 +251,8 @@ function afterAnswer(res, pickedName) {
 function clickMap(hit) {
 	if (!hit) return;
 	// the same words as World Capitals for a lake, and for land that is no country's (Greenland, Western Sahara)
-	if (hit.lake != null) return toast(hit.lake ? t('lake_is', { name: hit.lake }) : t('a_lake'));
-	if (hit.place) return toast(t('not_country', { name: hit.of && hit.of !== hit.place ? t('place_of', { name: hit.place, of: hit.of }) : hit.place }));
+	if (hit.lake != null) return toast(hit.lake ? t('lake_is', { name: lakeName(hit.lake) }) : t('a_lake'));
+	if (hit.place) return toast(t('not_country', { name: hit.of && hit.of !== hit.place ? t('place_of', { name: placeName(hit.place), of: placeName(hit.of) }) : placeName(hit.place) }));
 	if (hit.country) {
 		if (state.open) return; // while a country is open, the rest of the world is just background
 		return openCountry(hit.country);
@@ -257,9 +260,9 @@ function clickMap(hit) {
 	const i = hit.unit, s = state.session;
 	if (s && !state.review) {
 		if (s.format !== 'click') return;
-		if (s.result.has(i) && s.result.get(i) !== 'bad' && current(s) !== i) return toast(t('already_done', { name: state.open.units[i].name }));
+		if (s.result.has(i) && s.result.get(i) !== 'bad' && current(s) !== i) return toast(t('already_done', { name: unitName(state.open.units[i]) }));
 		const res = answerClick(s, i);
-		if (res) afterAnswer(res, state.open.units[i].name);
+		if (res) afterAnswer(res, unitName(state.open.units[i]));
 		return;
 	}
 	state.selected = state.selected === i ? null : i;
@@ -318,7 +321,10 @@ function renderList() {
 	for (const key of CONTINENTS) {
 		const label = t('continent.' + key);
 		const all = state.countries.filter((c) => c.region === key);
-		const rows = all.filter((c) => !q || norm(c.name).replace(/ /g, '').includes(q));
+		// found by its name in the language in use or in English; listed by the name shown
+		const rows = all
+			.filter((c) => !q || [c.name, ...countryForms(c)].some((n) => norm(n).replace(/ /g, '').includes(q)))
+			.sort((a, b) => countryName(a).localeCompare(countryName(b), language().locale));
 		if (!rows.length) continue;
 		const shut = !q && state.collapsed.has(key);
 		const h = document.createElement('h3');
@@ -337,7 +343,7 @@ function renderList() {
 			b.dataset.id = c.id;
 			b.setAttribute('aria-pressed', String(!!state.open && state.open.id === c.id));
 			const name = document.createElement('span'), n = document.createElement('em');
-			name.textContent = c.name;
+			name.textContent = countryName(c);
 			n.textContent = c.count;
 			b.append(name, n);
 			li.append(b);
@@ -348,7 +354,7 @@ function renderList() {
 	if (!q && state.none.length) {
 		const p = document.createElement('p');
 		p.className = 'none';
-		p.textContent = t('nothing_in', { names: language().join(state.none.map((c) => c.name)) });
+		p.textContent = t('nothing_in', { names: language().join(state.none.map(countryName)) });
 		frag.append(p);
 	}
 	if (!frag.childNodes.length) {
@@ -376,7 +382,7 @@ function renderPrompt() {
 			: t('loading');
 		return;
 	}
-	$('pEyebrow').textContent = t('eyebrow', { mode: t('mode_' + state.mode), country: o.name });
+	$('pEyebrow').textContent = t('eyebrow', { mode: t('mode_' + state.mode), country: countryName(o) });
 	if (rv) {
 		$('pName').textContent = t('score', { score: points(rv.sum.score), total: rv.sum.total });
 		const best = saved.get('best', {})[bestKey()];
@@ -387,25 +393,28 @@ function renderPrompt() {
 		$('rCloseKey').hidden = !rv.sum.close;
 		$('rBad').textContent = rv.sum.bad;
 		$('missedBtn').hidden = !rv.sum.missed.length;
-		if (state.selected != null) $('pName').textContent = o.units[state.selected].name;
+		if (state.selected != null) $('pName').textContent = unitName(o.units[state.selected]);
 		return;
 	}
 	if (quiz) {
 		const i = current(s), done = s.total - new Set(s.queue).size;
-		$('pName').textContent = s.format === 'click' ? o.units[i].name : t('which_lit', { kind: kindOne() });
+		$('pName').textContent = s.format === 'click' ? unitName(o.units[i]) : kindWhich(o.kind, o.id);
 		$('pMeta').textContent = `${t('n_of', { i: Math.min(done + 1, s.total), n: s.total })} · ${t(s.format === 'click' ? 'how_click' : 'how_type')}`;
 		$('pBarFill').style.width = `${(100 * done) / s.total}%`;
 		return;
 	}
 	if (state.selected == null) {
-		$('pName').textContent = t('n_kind', { n: o.units.length, kind: o.kind });
-		$('pMeta').textContent = o.far.length
-			? t('far_off', { n: o.far.length, names: language().join(o.far) })
+		$('pName').textContent = kindCount(o.kind, o.units.length, o.id);
+		const far = o.far.map((i) => unitName(o.units[i])).sort((a, b) => a.localeCompare(b, language().locale));
+		$('pMeta').textContent = far.length
+			? t('far_off', { n: far.length, names: language().join(far) })
 			: t(narrow() ? 'tap_region' : 'step_hint');
 	} else {
-		const u = o.units[state.selected];
-		$('pName').textContent = u.name;
-		$('pMeta').textContent = [t('n_of', { i: state.selected + 1, n: o.units.length }), u.type, u.alts && u.alts.length ? t('also', { names: u.alts.slice(0, 2).join(', ') }) : ''].filter(Boolean).join(' · ');
+		const u = o.units[state.selected], shown = unitName(u);
+		// its other names: the English one where another language's is shown, then the map data's
+		const also = [...new Set([u.name, ...(u.alts || [])])].filter((n) => norm(n) !== norm(shown)).slice(0, 2);
+		$('pName').textContent = shown;
+		$('pMeta').textContent = [t('n_of', { i: state.selected + 1, n: o.units.length }), typeName(u.type), also.length ? t('also', { names: also.join(', ') }) : ''].filter(Boolean).join(' · ');
 	}
 }
 function renderStats() {
@@ -561,15 +570,35 @@ window.addEventListener('resize', () => {
 });
 
 /* ---------- start ---------- */
+// where the names come from, after the credit line, when they are in another language than English
+function nameCredit() {
+	const credit = document.querySelector('[data-i18n-html="credit"]');
+	if (!credit) return;
+	credit.querySelector('.names-credit')?.remove();
+	if (language().code === 'en') return;
+	const span = document.createElement('span');
+	span.className = 'names-credit';
+	span.textContent = ' ' + t('names_credit');
+	credit.append(span);
+}
 async function boot() {
 	const [index, low, lang] = await Promise.all([
 		fetch('data/index.json').then((r) => r.json()),
 		fetch(CAPITALS + 'map-low.json').then((r) => r.json()),
 		// the page's words, in the language picked (/js/language.js, which the page started)
-		SiteLanguage.open({ layers: [{ text: EN, files: new URL('../lang/', import.meta.url) }] }),
+		// the page's words and the regions' names in the language picked (/js/language.js, which the page started),
+		// and World Capitals' names of countries, places and lakes in it
+		SiteLanguage.open({ layers: [{ text: EN, files: new URL('../lang/', import.meta.url) }, { files: new URL('../../capital-atlas/lang/', import.meta.url) }] }),
 	]);
 	useLanguage(lang);
-	lang.onChange(render);
+	nameCredit();
+	lang.onChange(() => {
+		nameCredit();
+		// the map's labels and a round's answers follow the new language; the round itself carries on
+		for (const d of loaded.values()) d.features.forEach((f, i) => (f.properties.name = unitName(d.units[i])));
+		if (state.session && state.open) state.session.units = askable(state.open);
+		render();
+	});
 	state.countries = index.countries;
 	state.none = index.none;
 	state.byId = new Map(index.countries.map((c) => [c.id, c]));

@@ -14,7 +14,7 @@ Learn the states, provinces and regions of every country, one country at a time.
 - Typed answers ignore accents, and a small spelling slip counts as half a point. Names are in English where a source has them; local and other names count too
 - "Show all names" (N) labels the whole country
 - Borders match World Capitals' map, so the two tools always agree
-- English only for now
+- English and 25 other languages: the whole page in 21 of them (Arabic, Persian, Hebrew and Urdu laid out right to left), the names in all 25. Typed answers take the names in the language in use and the English ones
 - Progress and best scores stay in your browser: no account, nothing is sent anywhere
 
 ## Files
@@ -28,6 +28,7 @@ This tool is one folder of [Geography Tools](../README.md). It draws its globe w
 | `js/core/` | Answer checking and the rules of a round, with no page code |
 | `js/map.js` | Draws the globe, to look like World Capitals' |
 | `js/text.js` | Every word it shows, in English |
+| `lang/<code>.json` | The page's words and the subdivisions' names in each other language (country names are World Capitals', in `../capital-atlas/lang/`) |
 | `data/index.json` | The countries, how many subdivisions each has, and what they're called (states, provinces, counties...) |
 | `data/sub/<id>.json` | One country's subdivisions: shapes, names, and the other names that count |
 | `data/borders.json` | Every country's subdivision lines at once, for the spinning globe |
@@ -38,6 +39,7 @@ This tool is one folder of [Geography Tools](../README.md). It draws its globe w
 - **Code**: MIT, see [LICENSE](../LICENSE).
 - **Shapes**: [Natural Earth](https://www.naturalearthdata.com/) 1:10m states and provinces (public domain) for most countries, drawn on the same lines as World Capitals' map. [geoBoundaries](https://www.geoboundaries.org/) (Runfola et al. 2020) where Natural Earth is out of date: its licence differs by country (public domain, CC BY, or the ODbL for data made from OpenStreetMap). Algeria's 69 provinces: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL), by way of [geoalgeria](https://github.com/yasserstudio/geoalgeria). [`SOURCES.md`](SOURCES.md) lists the source of every country.
 - **The files in `data/`** are a database made from those sources. Where a country's shapes come from an ODbL source, they are available under the [Open Database License 1.0](https://opendatacommons.org/licenses/odbl/1-0/); keep the credits above if you reuse them.
+- **Names in other languages**: [Unicode CLDR](https://cldr.unicode.org/) subdivision names, under the Unicode License v3 (its text is in [`../capital-atlas/lang/LICENSES.md`](../capital-atlas/lang/LICENSES.md)), and Natural Earth's (public domain, from Wikidata, CC0). The page's words were translated for this site.
 - **d3-geo, d3-array and topojson-client** by Mike Bostock: ISC, see the [licenses](../licenses/) folder.
 
 ## Updates and feedback

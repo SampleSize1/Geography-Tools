@@ -1,6 +1,9 @@
-// Every word States & Provinces shows, in English. Other languages would be ../lang/<code>.json, listed in the page's
-// SiteLanguage.start (/js/language.js picks the language and looks words up, as in every tool). The country and
-// region names, and the kind of region ("states", "provinces"), are the map data's (data/), not words of the page.
+// Every word States & Provinces shows, in English. Each other language is ../lang/<code>.json, written by
+// tools-src/state-atlas/build/names.py from the translation in tools-src/state-atlas/i18n/<code>.json and listed in
+// the page's SiteLanguage.start (/js/language.js picks the language and looks words up, as in every tool). The
+// region names, and the kind of region ("states", "provinces"), are the map data's (data/); their other languages
+// are in the same lang/<code>.json (units, kinds, types). Country, place and lake names are World Capitals' own,
+// from its lang/<code>.json.
 //
 // {name} in a text is filled in; { one, other } is picked by the number n.
 
@@ -44,6 +47,7 @@ export const EN = {
 	restart: 'Restart',
 	show_names: 'Show all names',
 	keys: '<kbd>←</kbd><kbd>→</kbd> previous / next · <kbd>+</kbd><kbd>−</kbd> zoom · <kbd>Esc</kbd> deselect, then back to the globe · <kbd>N</kbd> names',
+	names_credit: 'Names in other languages: Unicode CLDR and Natural Earth, from Wikidata (regions), and World Capitals’ own (countries, places and lakes).',
 	credit: 'Beta. Borders match {wc}. Shapes: {ne} (public domain) and {gb} (open licences, incl. CC BY 4.0 and ODbL); Algeria © {osm} contributors (ODbL), by way of {ga}. Some countries are not yet up to date with recent reforms. Made by @samplesize_1.',
 	countries: 'Countries',
 	prev: '← Previous',
@@ -114,3 +118,36 @@ export function useLanguage(lang) {
 }
 export const t = (key, vars) => (L ? L.t(key, vars) : key);
 export const language = () => L;
+
+/* ---------------- names, in the language in use (English where it has none) ---------------- */
+// layer 0 is this tool's lang/<code>.json, layer 1 World Capitals' (app.js opens both)
+const file = (i) => (L && L.file(i)) || {};
+// a region's name, and every name of it that counts as a typed answer in this language (English ones count too)
+export const unitName = (u) => file(0).units?.[u.id]?.[0] || u.name;
+export const unitForms = (u) => file(0).units?.[u.id] || [];
+// a country's name, and its other names in this language, as on World Capitals
+export const countryName = (c) => file(1).countries?.[c.id]?.[0] || c.name;
+export const countryForms = (c) => file(1).countries?.[c.id] || [];
+// land that is no country's (Greenland, and whose it is: Denmark), and lakes, by their English names
+export const placeName = (en) => (en && file(1).places?.[en]) || en;
+export const lakeName = (en) => (en && file(1).water?.[en]) || en;
+// what sort of region one is ("City", "Autonomous Region"), shown beside its name
+export const typeName = (type) => (type && file(0).types?.[type]) || type;
+// the kind of region a country has: "51 states", "Which state is lit up?". English builds both from the map data's
+// word; a language has its own pair for each kind, since its grammar can't be built from one word, and may have one
+// for a country of its own ("states@DEU": Germany's Bundesländer, not Bundesstaaten)
+const kindOf = (kind, country) => file(0).kinds?.[kind + '@' + country] || file(0).kinds?.[kind];
+export function kindCount(kind, n, country) {
+	const own = kindOf(kind, country)?.n;
+	if (!own) return t('n_kind', { n, kind });
+	let form = own;
+	if (typeof own === 'object') {
+		const rule = new Intl.PluralRules(L.tag).select(n);
+		form = '=' + n in own ? own['=' + n] : own[rule] ?? own.other;
+	}
+	return String(form).replace('{n}', n.toLocaleString(L.tag));
+}
+export function kindWhich(kind, country) {
+	const own = kindOf(kind, country)?.which;
+	return own || t('which_lit', { kind: kind === 'subdivisions' ? 'region' : kind.replace(/ies$/, 'y').replace(/s$/, '') });
+}

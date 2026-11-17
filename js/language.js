@@ -88,9 +88,12 @@
 	// is shown in English, because a names-only language has the rest of the page in English.
 	var OWN = {
 		en: { lang_title: 'Language', lang_note: '', lang_load_fail: 'That language didn’t load. Check your connection and try again.', names_note: 'Names are in {lang}. The rest of the page stays in English.', credits: 'Credits' },
+		ar: { lang_title: 'اللغة', lang_load_fail: 'لم تُحمَّل هذه اللغة. تحقّق من اتصالك وحاول مرة أخرى.', credits: 'المصادر' },
 		de: { lang_title: 'Sprache', lang_load_fail: 'Diese Sprache wurde nicht geladen. Prüfe deine Verbindung und versuche es noch einmal.', credits: 'Quellen' },
 		es: { lang_title: 'Idioma', lang_load_fail: 'Ese idioma no se cargó. Revisa tu conexión e inténtalo de nuevo.', credits: 'Créditos' },
+		fa: { lang_title: 'زبان', lang_load_fail: 'این زبان بارگذاری نشد. اتصال خود را بررسی کنید و دوباره امتحان کنید.', credits: 'منابع' },
 		fr: { lang_title: 'Langue', lang_load_fail: 'Cette langue ne s’est pas chargée. Vérifiez votre connexion et réessayez.', credits: 'Crédits' },
+		he: { lang_title: 'שפה', lang_load_fail: 'השפה לא נטענה. בדקו את החיבור ונסו שוב.', credits: 'קרדיטים' },
 		hi: { lang_title: 'भाषा', lang_load_fail: 'यह भाषा लोड नहीं हुई। अपना कनेक्शन जाँचें और फिर से कोशिश करें।', credits: 'श्रेय' },
 		id: { lang_title: 'Bahasa', lang_load_fail: 'Bahasa ini gagal dimuat. Periksa koneksimu lalu coba lagi.', credits: 'Kredit' },
 		it: { lang_title: 'Lingua', lang_load_fail: 'Questa lingua non si è caricata. Controlla la connessione e riprova.', credits: 'Crediti' },
@@ -102,6 +105,7 @@
 		ru: { lang_title: 'Язык', lang_load_fail: 'Этот язык не загрузился. Проверьте подключение и попробуйте ещё раз.', credits: 'Источники' },
 		tr: { lang_title: 'Dil', lang_load_fail: 'Bu dil yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.', credits: 'Kaynaklar' },
 		uk: { lang_title: 'Мова', lang_load_fail: 'Цю мову не вдалося завантажити. Перевірте з’єднання й спробуйте ще раз.', credits: 'Джерела' },
+		ur: { lang_title: 'زبان', lang_load_fail: 'یہ زبان لوڈ نہیں ہوئی۔ اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔', credits: 'حوالہ جات' },
 		vi: { lang_title: 'Ngôn ngữ', lang_load_fail: 'Không tải được ngôn ngữ này. Hãy kiểm tra kết nối và thử lại.', credits: 'Ghi công' },
 		zh: { lang_title: '语言', lang_load_fail: '该语言未能加载。请检查网络连接后重试。', credits: '致谢' },
 		zht: { lang_title: '語言', lang_load_fail: '此語言無法載入。請檢查網路連線後再試一次。', credits: '致謝' },

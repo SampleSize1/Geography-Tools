@@ -60,15 +60,18 @@ button, input { font: inherit; }
 .ui > * { pointer-events: auto; }
 .panel { background: var(--panel); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line-strong); border-radius: var(--r); }
 .label { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+/* Arabic, Persian and Urdu letters join: spacing them out, or a monospaced font, breaks the words */
+:is(html[lang=ar], html[lang=fa], html[lang=ur]) { --f-mono: system-ui, sans-serif; }
+:is(html[lang=ar], html[lang=fa], html[lang=ur]) * { letter-spacing: 0 !important; }
 
 /* brand */
 .brand { grid-column: 1; grid-row: 1; align-self: start; justify-self: start; display: grid; gap: 5px; min-width: 0; text-shadow: 0 1px 10px rgba(5, 8, 11, 0.85); }
 .lockup { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .home { display: inline-flex; color: var(--scan); flex: none; border-radius: 4px; }
 .home svg { height: 21px; width: auto; filter: drop-shadow(0 1px 5px rgba(5, 8, 11, 0.85)); }
-.mark { font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em; font-size: 19px; color: var(--bone); line-height: 1; white-space: nowrap; }
+.mark { direction: ltr; font-weight: 800; font-stretch: 125%; letter-spacing: -0.01em; font-size: 19px; color: var(--bone); line-height: 1; white-space: nowrap; }
 .mark span { color: var(--scan); }
-.mark sup { font-family: var(--f-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.1em; color: var(--close); border: 1px solid currentColor; border-radius: 4px; padding: 1px 4px; margin-left: 6px; vertical-align: 6px; text-shadow: none; filter: drop-shadow(0 1px 3px rgba(5, 8, 11, 0.9)); }
+.mark sup { font-family: var(--f-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.1em; color: var(--close); border: 1px solid currentColor; border-radius: 4px; padding: 1px 4px; margin-inline-start: 6px; vertical-align: 6px; text-shadow: none; filter: drop-shadow(0 1px 3px rgba(5, 8, 11, 0.9)); }
 /* the small line under the name is thin and grey: over land it needs a closer, denser shadow than the name */
 .brand .sub { color: var(--muted); font-size: 12.5px; font-stretch: 90%; text-shadow: 0 0 3px rgba(5, 8, 11, 0.95), 0 0 6px rgba(5, 8, 11, 0.9), 0 1px 12px rgba(5, 8, 11, 0.9); }
 
@@ -86,7 +89,7 @@ button, input { font: inherit; }
 .answer input { flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line-strong); border-radius: 7px; padding: 8px 10px; font-size: 16px; }
 .row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
-.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-inline-end: 5px; }
 .legend .ok i { background: var(--ok); } .legend .close i { background: var(--close); } .legend .bad i { background: var(--bad); }
 .legend b { color: var(--fg); font-variant-numeric: tabular-nums; }
 
@@ -99,7 +102,7 @@ button, input { font: inherit; }
 .left { grid-column: 1; grid-row: 2; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; min-height: 0; }
 .countries { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; padding: 12px; min-height: 0; }
 .countries input { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; font-size: 14px; width: 100%; box-sizing: border-box; }
-.list { overflow-y: auto; overscroll-behavior: contain; min-height: 0; margin-right: -6px; padding-right: 6px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.list { overflow-y: auto; overscroll-behavior: contain; min-height: 0; margin-inline-end: -6px; padding-inline-end: 6px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .list h3 { position: sticky; top: 0; z-index: 1; margin: 0; background: #0f171e; }
 .list h3 button { width: 100%; display: flex; justify-content: space-between; align-items: center; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--scan); font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; padding: 8px 4px 6px; cursor: pointer; }
 .list h3 button em { font-style: normal; color: var(--muted); letter-spacing: 0; }
@@ -279,13 +282,36 @@ body.spinning .ui, body.spinning .toast { opacity: 0; visibility: hidden; transi
 
 <script>
 /* The language (/js/language.js): a ?lang= link, then the one picked in this tool before, then the one picked last on
-   the site, then the browser's, then English. English only so far: to add one, see tools-src/state-atlas/README.md. */
+   the site, then the browser's, then English. The list below is written by tools-src/state-atlas/build/names.py:
+   to add a language, see tools-src/state-atlas/README.md. */
 SiteLanguage.start({
   tool: 'state-atlas',
-  langs: ['en'],
+  langs: ['en', 'ar', 'bn', 'de', 'el', 'es', 'fa', 'fr', 'he', 'hi', 'hu', 'id', 'it', 'ja', 'ko', 'nl', 'pl', 'pt', 'ru', 'sv', 'tr', 'uk', 'ur', 'vi', 'zh', 'zht'],
+  namesOnly: ['bn', 'el', 'hu', 'sv'],
   // start-up text, shown before the map's code runs
   boot: {
     en: { loading: 'Loading the map…', load_fail: 'The map didn’t load. Check your connection and reload the page.' },
+    ar: { loading: "جارٍ تحميل الخريطة…", load_fail: "لم تُحمَّل الخريطة. تحقّق من اتصالك ثم أعد تحميل الصفحة." },
+    de: { loading: "Die Karte wird geladen…", load_fail: "Die Karte wurde nicht geladen. Prüfe deine Verbindung und lade die Seite neu." },
+    es: { loading: "Cargando el mapa…", load_fail: "El mapa no se cargó. Revisa tu conexión y recarga la página." },
+    fa: { loading: "در حال بارگذاری نقشه…", load_fail: "نقشه بارگذاری نشد. اتصال خود را بررسی کنید و صفحه را دوباره بارگذاری کنید." },
+    fr: { loading: "Chargement de la carte…", load_fail: "La carte ne s’est pas chargée. Vérifiez votre connexion et rechargez la page." },
+    he: { loading: "טוען את המפה…", load_fail: "המפה לא נטענה. בדקו את החיבור וטענו את הדף מחדש." },
+    hi: { loading: "नक्शा लोड हो रहा है…", load_fail: "नक्शा लोड नहीं हुआ। अपना कनेक्शन जाँचें और पेज रीलोड करें।" },
+    id: { loading: "Memuat peta…", load_fail: "Peta gagal dimuat. Cek koneksimu lalu muat ulang halaman." },
+    it: { loading: "Caricamento della mappa…", load_fail: "La mappa non si è caricata. Controlla la connessione e ricarica la pagina." },
+    ja: { loading: "地図を読み込み中…", load_fail: "地図を読み込めませんでした。接続を確認して、ページを再読み込みしてください。" },
+    ko: { loading: "지도를 불러오는 중…", load_fail: "지도를 불러오지 못했어요. 연결을 확인하고 페이지를 새로 고쳐 주세요." },
+    nl: { loading: "De kaart wordt geladen…", load_fail: "De kaart is niet geladen. Controleer je verbinding en laad de pagina opnieuw." },
+    pl: { loading: "Wczytywanie mapy…", load_fail: "Mapa się nie wczytała. Sprawdź połączenie i odśwież stronę." },
+    pt: { loading: "Carregando o mapa…", load_fail: "O mapa não carregou. Verifique sua conexão e recarregue a página." },
+    ru: { loading: "Загрузка карты…", load_fail: "Карта не загрузилась. Проверьте подключение и перезагрузите страницу." },
+    tr: { loading: "Harita yükleniyor…", load_fail: "Harita yüklenmedi. Bağlantınızı kontrol edip sayfayı yenileyin." },
+    uk: { loading: "Завантаження карти…", load_fail: "Карта не завантажилася. Перевірте з’єднання й перезавантажте сторінку." },
+    ur: { loading: "نقشہ لوڈ ہو رہا ہے…", load_fail: "نقشہ لوڈ نہیں ہوا۔ اپنا کنکشن چیک کریں اور صفحہ دوبارہ لوڈ کریں۔" },
+    vi: { loading: "Đang tải bản đồ…", load_fail: "Không tải được bản đồ. Hãy kiểm tra kết nối rồi tải lại trang." },
+    zh: { loading: "正在加载地图…", load_fail: "地图没有加载出来。请检查网络连接后刷新页面。" },
+    zht: { loading: "正在載入地圖…", load_fail: "地圖沒有載入出來。請檢查網路連線後重新整理頁面。" },
   },
 });
 </script>
